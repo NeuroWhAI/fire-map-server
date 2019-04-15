@@ -19,8 +19,26 @@ use std::fs::create_dir_all;
 use rocket::response::NamedFile;
 
 
+lazy_static! {
+    static ref ROCKET_ENV: String = {
+        env::var("ROCKET_ENV")
+            .or_else(|_| -> Result<String, VarError> {
+                if cfg!(debug_assertions) {
+                    Ok("development".into())
+                }
+                else {
+                    Ok("production".into())
+                }
+            }).unwrap()
+    };
+    static ref DEBUG: bool = {
+        let dbg_envs = ["dev", "development", "staging", "stage"];
+        dbg_envs.iter().any(|&v| v == *ROCKET_ENV)
+    };
+}
+
 const STATIC_DIR: &'static str = "static/";
-const TEST_DIR: &'static str = "test-pages/";
+const TEST_DIR: &'static str = "test/";
 
 
 #[get("/")]
@@ -30,43 +48,28 @@ fn index() -> &'static str {
 
 #[get("/<file..>")]
 fn get_static_file(file: PathBuf) -> Option<NamedFile> {
-    NamedFile::open(Path::new(STATIC_DIR).join(file)).ok()
-}
-
-#[get("/<file..>")]
-fn get_test_file(file: PathBuf) -> Option<NamedFile> {
-    NamedFile::open(Path::new(TEST_DIR).join(file)).ok()
+    if !*DEBUG && file.starts_with(TEST_DIR) {
+        None
+    }
+    else {
+        NamedFile::open(Path::new(STATIC_DIR).join(file)).ok()
+    }
 }
 
 
 fn main() {
-    let rocket_env = env::var("ROCKET_ENV")
-        .or_else(|_| -> Result<String, VarError> {
-            if cfg!(debug_assertions) {
-                Ok("development".into())
-            }
-            else {
-                Ok("production".into())
-            }
-        }).unwrap();
-
     create_dir_all(Path::new(STATIC_DIR).join(report_route::IMAGE_PUBLIC_DIR))
         .and(create_dir_all(Path::new(report_route::IMAGE_UPLOAD_DIR)))
         .expect("Initial directory creation failed.");
 
-    let dbg_envs = ["dev", "development", "staging", "stage"];
-    if dbg_envs.iter().any(|&v| v == rocket_env) {
-        // Debug
+    if *DEBUG {
         rocket::ignite()
-            .mount(&format!("/{}", TEST_DIR), routes![get_test_file])
             .mount("/", routes![captcha_sys::test_captcha])
     }
     else {
-        // Release
         rocket::ignite()
     }
-    .mount("/", routes![index])
-    .mount(&format!("/{}", STATIC_DIR), routes![get_static_file])
+    .mount("/", routes![index, get_static_file])
     .mount("/", routes![
         captcha_sys::get_captcha,
     ])
