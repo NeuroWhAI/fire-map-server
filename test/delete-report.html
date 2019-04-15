@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test</title>
+</head>
+<body>
+    <script>
+        function onClick() {
+            var req = new XMLHttpRequest();
+            req.addEventListener("load", function() {
+                document.writeln(this.responseText);
+            });
+            req.open("DELETE", `http://localhost:8288/report?id=${index.value}&user_id=${user_id.value}&user_pwd=${user_pwd.value}`);
+            req.send();
+        }
+    </script>
+    Report ID : <input type="text" id="index"/><br>
+    User ID : <input type="text" id="user_id"/><br>
+    User Pwd : <input type="password" id="user_pwd"/><br>
+    <button onclick="onClick();">Execute</button>
+</body>
+</html>

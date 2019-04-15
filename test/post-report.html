@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test</title>
+</head>
+<body>
+    <script>
+        function whenClickUpload() {
+            if (file_input.files.length > 0) {
+                var file = file_input.files[0];
+                if (file) {
+                    btn_upload.disabled = true;
+
+                    var reader = new FileReader();
+                    reader.onload = function() {
+                        var req = new XMLHttpRequest();
+                        req.onload = function() {
+                            img_key_input.value = req.responseText;
+                            alert("File uploaded");
+                        }
+                        req.onerror = function() {
+                            alert("Failed to upload file.");
+                        }
+                        req.onloadend = function() {
+                            btn_upload.disabled = false;
+                        }
+
+                        req.open("POST", "http://localhost:8288/upload-image");
+                        req.send(reader.result);
+                    }
+                    reader.onerror = function() {
+                        btn_upload.disabled = false;
+                        alert("Failed to load file.");
+                    }
+
+                    reader.readAsDataURL(file);
+                }
+            }
+        }
+    </script>
+    <div>
+        <input type="file" id="file_input" accept="image/*">
+        <button id="btn_upload" onclick="whenClickUpload();">Upload</button>
+    </div>
+    <div>
+        <img src="http://localhost:8288/captcha">
+        <form action="http://localhost:8288/report" method="POST" enctype="application/x-www-form-urlencoded">
+            Captcha : <input type="text" name="captcha"/><br>
+            ID : <input type="text" name="user_id"/><br>
+            PWD : <input type="password" name="user_pwd"/><br>
+            Latitude : <input type="text" name="latitude"/><br>
+            Longitude : <input type="text" name="longitude"/><br>
+            Level : <input type="text" name="lvl"/><br>
+            Desc : <input type="text" name="description"/><br>
+            Img : <input type="text" name="img_key" id="img_key_input"/><br>
+            <button type="submit">Execute</button>
+        </form>
+    </div>
+</body>
+</html>

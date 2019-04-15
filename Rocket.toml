@@ -1,0 +1,12 @@
+[global]
+address = "localhost"
+
+[development]
+log = "normal"
+port = 8288
+
+[staging]
+log = "normal"
+
+[production]
+log = "critical"
