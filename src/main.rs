@@ -17,6 +17,7 @@ use std::{env, env::VarError};
 use std::path::{Path, PathBuf};
 use std::fs::create_dir_all;
 use rocket::response::NamedFile;
+use rocket::fairing::AdHoc;
 
 
 lazy_static! {
@@ -64,6 +65,12 @@ fn main() {
 
     if *DEBUG {
         rocket::ignite()
+            .attach(AdHoc::on_response("CORS", |_, rsp| {
+                rsp.set_raw_header("Access-Control-Allow-Origin", "*");
+                rsp.set_raw_header("Access-Control-Allow-Methods", "GET");
+                rsp.set_raw_header("Access-Control-Max-Age", "3600");
+                rsp.set_raw_header("Access-Control-Allow-Headers", "Origin,Accept,X-Requested-With,Content-Type,Access-Control-Request-Method,Access-Control-Request-Headers,Authorization");
+            }))
             .mount("/", routes![captcha_sys::test_captcha])
     }
     else {
