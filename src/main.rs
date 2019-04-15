@@ -20,7 +20,7 @@ use rocket::response::NamedFile;
 
 
 const STATIC_DIR: &'static str = "static/";
-const TEST_DIR: &'static str = "test/";
+const TEST_DIR: &'static str = "test-pages/";
 
 
 #[get("/")]
