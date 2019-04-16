@@ -80,6 +80,9 @@ impl ReportForm {
         if self.user_id.find(char::is_whitespace).is_some() {
             Some("The ID can not contain spaces")
         }
+        else if self.user_id.len() > 24 {
+            Some("ID can not be longer than 24 characters")
+        }
         else if self.user_pwd.len() < 4 {
             Some("Password must be at least 4 digits")
         }
@@ -89,7 +92,8 @@ impl ReportForm {
         else if self.description.len() >= 65536 {
             Some("The maximum length of the description is 65536")
         }
-        else if self.img_key.find("..").is_some() {
+        else if self.img_key.find("..").is_some()
+            || self.img_key.len() > 256 {
             Some("Invalid image key")
         }
         else {
