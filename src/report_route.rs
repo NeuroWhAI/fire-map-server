@@ -80,11 +80,14 @@ impl ReportForm {
         if self.user_id.find(char::is_whitespace).is_some() {
             Some("The ID can not contain spaces")
         }
+        else if self.user_id.len() < 2 {
+            Some("ID must be at least 2 characters")
+        }
         else if self.user_id.len() > 24 {
             Some("ID can not be longer than 24 characters")
         }
         else if self.user_pwd.len() < 4 {
-            Some("Password must be at least 4 digits")
+            Some("Password must be at least 4 characters")
         }
         else if self.lvl < 0 || self.lvl >= 5 {
             Some("Invalid level")
