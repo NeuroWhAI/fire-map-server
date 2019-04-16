@@ -6,7 +6,10 @@ use std::{
     io::{self, Read, Write},
 };
 use rocket::{
-    response::content::Json,
+    response::{
+        status::BadRequest,
+        content::Json,
+    },
     request::Form,
     http::Cookies,
     data::Data,
@@ -17,7 +20,8 @@ use crate::util::{self};
 use crate::captcha_sys::verify_and_remove_captcha;
 
 
-type JsonResult = Result<Json<String>, String>;
+type JsonResult = Result<Json<String>, BadRequest<String>>;
+type StringResult = Result<String, BadRequest<String>>;
 
 
 lazy_static! {
@@ -32,6 +36,23 @@ const PASSWORD_HASH_SORT: &'static str = "^^ NeuroWhAI 42 5749";
 const FILE_UPLOAD_LIMIT: usize = (8 * 1024 * 1024 / 3) * 4; // chars
 pub const IMAGE_UPLOAD_DIR: &'static str = "upload/images/";
 pub const IMAGE_PUBLIC_DIR: &'static str = "images/";
+
+
+fn make_json_result(json: String) -> JsonResult {
+    Ok(Json(json))
+}
+
+fn make_json_error(err: String) -> JsonResult {
+    Err(BadRequest(Some(err)))
+}
+
+fn make_string_result(txt: String) -> StringResult {
+    Ok(txt)
+}
+
+fn make_string_error(err: String) -> StringResult {
+    Err(BadRequest(Some(err)))
+}
 
 
 struct ReportMapCache {
@@ -111,7 +132,7 @@ pub fn get_report(id: i32) -> JsonResult {
     let result = db::get_report(id);
 
     if let Ok(r) = result {
-        Ok(Json(json!({
+        make_json_result(json!({
             "id": r.id,
             "user_id": r.user_id,
             "latitude": r.latitude,
@@ -120,10 +141,10 @@ pub fn get_report(id: i32) -> JsonResult {
             "lvl": r.lvl,
             "description": r.description,
             "img_path": r.img_path,
-        }).to_string()))
+        }).to_string())
     }
     else {
-        Err(result.err().unwrap().to_string())
+        make_json_error(result.err().unwrap().to_string())
     }
 }
 
@@ -133,7 +154,7 @@ pub fn get_report_map() -> JsonResult {
     {
         let cache = REPORT_MAP_CACHE.read().unwrap();
         if cache.is_valid() {
-            return Ok(Json(cache.get_data()))
+            return make_json_result(cache.get_data())
         }
     }
 
@@ -165,15 +186,15 @@ pub fn get_report_map() -> JsonResult {
             cache.update(reports_json.clone());
         }
 
-        Ok(Json(reports_json))
+        make_json_result(reports_json)
     }
     else {
-        Err(result.err().unwrap().to_string())
+        make_json_error(result.err().unwrap().to_string())
     }
 }
 
 #[post("/upload-image", format="plain", data="<data>")]
-pub fn post_upload_image(data: Data) -> Result<String, String> {
+pub fn post_upload_image(data: Data) -> StringResult {
     // Read base64 encoded string.
     let mut file_data = data.open().take(FILE_UPLOAD_LIMIT as u64 + 1);
     let mut data_uri = String::new();
@@ -181,8 +202,8 @@ pub fn post_upload_image(data: Data) -> Result<String, String> {
 
     match read_result {
         Ok(bytes) if bytes <= FILE_UPLOAD_LIMIT => (),
-        Ok(_) => return Err("The file is too large".into()),
-        Err(err) => return Err(err.to_string()),
+        Ok(_) => return make_string_error("The file is too large".into()),
+        Err(err) => return make_string_error(err.to_string()),
     }
 
     // Get file extension.
@@ -190,14 +211,14 @@ pub fn post_upload_image(data: Data) -> Result<String, String> {
         .and_then(|x| x.split('/').nth(1))
         .and_then(|x| x.split(';').nth(0));
     if ext_result.is_none() {
-        return Err("Invalid uri".into());
+        return make_string_error("Invalid uri".into());
     }
     let ext = ext_result.unwrap();
 
     // Check file extension.
     let allowed_exts = &["jpeg", "jpg", "png", "bmp"];
     if !allowed_exts.iter().any(|&x| x == ext) {
-        return Err("Invalid extension".into());
+        return make_string_error("Invalid extension".into());
     }
 
     // Decode base64 string to bytes.
@@ -205,7 +226,7 @@ pub fn post_upload_image(data: Data) -> Result<String, String> {
         .ok_or("Invalid uri".to_owned())
         .and_then(|b64| base64::decode(b64).map_err(|err| err.to_string()));
     if let Err(err) = decode_result {
-        return Err(err);
+        return make_string_error(err);
     }
     let bytes = decode_result.unwrap();
 
@@ -221,34 +242,34 @@ pub fn post_upload_image(data: Data) -> Result<String, String> {
         match file_result {
             Ok(file) => break (id, file),
             Err(ref err) if err.kind() == io::ErrorKind::AlreadyExists => continue,
-            Err(err) => return Err(err.to_string()),
+            Err(err) => return make_string_error(err.to_string()),
         }
     };
 
     // Save bytes to file.
     match file.write_all(&bytes) {
-        Ok(_) => Ok(id),
-        Err(err) => Err(err.to_string()),
+        Ok(_) => make_string_result(id),
+        Err(err) => make_string_error(err.to_string()),
     }
 }
 
 #[post("/report", format="application/x-www-form-urlencoded", data="<form>")]
 pub fn post_report(form: Option<Form<ReportForm>>, cookies: Cookies)
-    -> Result<String, String> {
+    -> StringResult {
 
     if form.is_none() {
-        return Err("Invalid form".into());
+        return make_string_error("Invalid form".into());
     }
 
     let form = form.unwrap();
 
 
     if let Some(err) = form.verify_error() {
-        return Err(err.to_string());
+        return make_string_error(err.to_string());
     }
     
     if !verify_and_remove_captcha(cookies, &form.captcha) {
-        return Err("Wrong captcha".into());
+        return make_string_error("Wrong captcha".into());
     }
 
 
@@ -261,17 +282,17 @@ pub fn post_report(form: Option<Form<ReportForm>>, cookies: Cookies)
                 .and(fs::remove_file(&uploaded_file));
 
             match move_result {
-                Err(err) => return Err(err.to_string()),
+                Err(err) => return make_string_error(err.to_string()),
                 _ => ()
             }
 
             match public_file.to_str() {
                 Some(path) => path.into(),
-                None => return Err("Invalid public path".into())
+                None => return make_string_error("Invalid public path".into())
             }
         }
         else {
-            return Err("No images uploaded".into());
+            return make_string_error("No images uploaded".into());
         }
     }
     else {
@@ -293,14 +314,14 @@ pub fn post_report(form: Option<Form<ReportForm>>, cookies: Cookies)
     };
 
     match db::insert_report(&new_report) {
-        Ok(report) => Ok(report.id.to_string()),
-        Err(err) => Err(err.to_string())
+        Ok(report) => make_string_result(report.id.to_string()),
+        Err(err) => make_string_error(err.to_string())
     }
 }
 
 #[delete("/report?<id>&<user_id>&<user_pwd>")]
 pub fn delete_report(id: i32, user_id: String, user_pwd: String)
-    -> Result<String, String> {
+    -> StringResult {
 
     let sorted_pwd = user_pwd + PASSWORD_HASH_SORT;
     let hashed_pwd = util::calculate_hash(&sorted_pwd).to_string();
@@ -313,15 +334,15 @@ pub fn delete_report(id: i32, user_id: String, user_pwd: String)
                 // 삭제하고 결과 반환.
                 let del_result = db::delete_report(id);
                 match del_result {
-                    Ok(cnt) if cnt > 0 => Ok(cnt.to_string()),
-                    Ok(_) => Err("Not found".into()),
-                    Err(err) => Err(err.to_string()),
+                    Ok(cnt) if cnt > 0 => make_string_result(cnt.to_string()),
+                    Ok(_) => make_string_error("Not found".into()),
+                    Err(err) => make_string_error(err.to_string()),
                 }
             }
             else {
-                Err("Authentication result is incorrect".into())
+                make_string_error("Authentication result is incorrect".into())
             }
         }
-        _ => Err("Not found".into())
+        _ => make_string_error("Not found".into())
     }
 }
