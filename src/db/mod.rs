@@ -3,11 +3,13 @@ pub mod schema;
 
 
 use std::env;
-use std::time::{SystemTime, Duration};
+use std::time::{UNIX_EPOCH, Duration};
 
 use diesel::prelude::*;
 use diesel::pg::PgConnection;
 use diesel::result::QueryResult;
+
+use chrono::Utc;
 
 use models::*;
 use schema::reports::dsl::{self};
@@ -26,9 +28,13 @@ fn establish_connection() -> PgConnection {
 }
 
 pub fn get_reports_within(time: Duration) -> QueryResult<Vec<Report>> {
+    let utc = Utc::now().timestamp() as u64;
+    let now = UNIX_EPOCH + Duration::new(utc, 0);
+    let filter_time = now - time;
+
     DB_CONN.with(|conn| {
         dsl::reports
-            .filter(dsl::created_time.gt(SystemTime::now() - time))
+            .filter(dsl::created_time.gt(filter_time))
             .load::<Report>(conn)
     })
 }

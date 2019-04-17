@@ -1,5 +1,5 @@
 use std::{
-    time::{UNIX_EPOCH, Duration, Instant, SystemTime},
+    time::{UNIX_EPOCH, Duration, Instant},
     sync::RwLock,
     fs::{self},
     path::Path,
@@ -15,6 +15,7 @@ use rocket::{
     data::Data,
 };
 use serde_json::json;
+use chrono::Utc;
 use crate::db::{self};
 use crate::util::{self};
 use crate::captcha_sys::verify_and_remove_captcha;
@@ -301,13 +302,14 @@ pub fn post_report(form: Option<Form<ReportForm>>, cookies: Cookies)
 
 
     let sorted_pwd = form.user_pwd.clone() + PASSWORD_HASH_SORT;
+    let utc = Utc::now().timestamp() as u64;
 
     let new_report = db::models::NewReport {
         user_id: form.user_id.clone(),
         user_pwd: util::calculate_hash(&sorted_pwd).to_string(),
         latitude: form.latitude,
         longitude: form.longitude,
-        created_time: SystemTime::now(),
+        created_time: UNIX_EPOCH + Duration::new(utc, 0),
         lvl: form.lvl,
         description: form.description.clone(),
         img_path: img_path,
