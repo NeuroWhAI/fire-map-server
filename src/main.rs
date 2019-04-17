@@ -11,6 +11,7 @@ mod db;
 mod util;
 mod captcha_sys;
 mod report_route;
+mod shelter_route;
 
 
 use std::{env, env::VarError};
@@ -86,6 +87,9 @@ fn main() {
         report_route::post_report,
         report_route::delete_report,
         report_route::post_upload_image,
+    ])
+    .mount("/", routes![
+        shelter_route::get_shelter_map,
     ])
     .launch();
 }
