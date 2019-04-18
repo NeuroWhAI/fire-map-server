@@ -12,6 +12,7 @@ mod util;
 mod captcha_sys;
 mod report_route;
 mod shelter_route;
+mod cctv_sys;
 
 
 use std::{env, env::VarError};
@@ -60,9 +61,13 @@ fn get_static_file(file: PathBuf) -> Option<NamedFile> {
 
 
 fn main() {
+    let cctv_task = cctv_sys::init_cctv_sys();
+
+
     create_dir_all(Path::new(STATIC_DIR).join(report_route::IMAGE_PUBLIC_DIR))
         .and(create_dir_all(Path::new(report_route::IMAGE_UPLOAD_DIR)))
         .expect("Initial directory creation failed.");
+
 
     if *DEBUG {
         rocket::ignite()
@@ -91,5 +96,11 @@ fn main() {
     .mount("/", routes![
         shelter_route::get_shelter_map,
     ])
+    .mount("/", routes![
+        cctv_sys::get_cctv,
+    ])
     .launch();
+
+
+    cctv_task.join().unwrap();
 }
