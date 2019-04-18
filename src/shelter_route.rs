@@ -7,7 +7,7 @@ use rocket::{
 };
 
 
-type JsonResult = Result<Json<String>, BadRequest<String>>;
+type JsonResult = Result<Json<&'static str>, BadRequest<String>>;
 
 
 lazy_static! {
@@ -20,5 +20,5 @@ lazy_static! {
 
 #[get("/shelter-map")]
 pub fn get_shelter_map() -> JsonResult {
-    Ok(Json(SHELTER_DATA.clone()))
+    Ok(Json(&*SHELTER_DATA))
 }
