@@ -79,8 +79,8 @@ pub fn init_cctv_sys() -> thread::JoinHandle<()> {
     thread::spawn(cctv_job)
 }
 
-#[get("/cctv")]
-pub fn get_cctv() -> Json<String> {
+#[get("/cctv-map")]
+pub fn get_cctv_map() -> Json<String> {
     Json(CCTV_DATA.read().unwrap().clone())
 }
 
