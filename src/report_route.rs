@@ -31,7 +31,7 @@ lazy_static! {
     };
 }
 
-const REPORT_DURATION: u64 = 24 * 60 * 60; // seconds
+const REPORT_DURATION: u64 = 48 * 60 * 60; // seconds
 const CACHE_VALID_DURATION: u64 = 10; // seconds
 const PASSWORD_HASH_SORT: &'static str = "^^ NeuroWhAI 42 5749";
 const FILE_UPLOAD_LIMIT: usize = (8 * 1024 * 1024 / 3) * 4; // chars
