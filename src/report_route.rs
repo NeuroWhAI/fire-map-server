@@ -269,7 +269,7 @@ pub fn post_report(form: Option<Form<ReportForm>>, cookies: Cookies)
         return make_string_error(err.to_string());
     }
     
-    if !verify_and_remove_captcha(cookies, &form.captcha) {
+    if !verify_and_remove_captcha(cookies, 1, &form.captcha) {
         return make_string_error("Wrong captcha".into());
     }
 

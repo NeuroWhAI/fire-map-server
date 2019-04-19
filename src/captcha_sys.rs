@@ -17,7 +17,7 @@ lazy_static! {
     };
 }
 
-const COOKIE_NAME: &'static str = "captcha_id";
+const COOKIE_NAMES: [&'static str; 3] = ["captcha_id", "captcha_0", "captcha_1"];
 const MAX_MAP_SIZE: usize = 512;
 const VALID_CAPTCHA_DURATION: u64 = 60 * 5;
 
@@ -41,8 +41,12 @@ impl CaptchaAnswer {
 }
 
 
-pub fn verify_and_remove_captcha(mut cookies: Cookies, user_answer: &str) -> bool {
-    if let Some(cookie) = cookies.get_private(COOKIE_NAME) {
+pub fn verify_and_remove_captcha(mut cookies: Cookies, mut channel: usize, user_answer: &str) -> bool {
+    if channel >= COOKIE_NAMES.len() {
+        channel = 0;
+    }
+
+    if let Some(cookie) = cookies.get_private(COOKIE_NAMES[channel]) {
         let mut map = ANSWER_MAP.lock().unwrap();
         let opt_answer = map.remove(cookie.value());
         
@@ -59,8 +63,12 @@ pub fn verify_and_remove_captcha(mut cookies: Cookies, user_answer: &str) -> boo
 }
 
 
-#[get("/captcha")]
-pub fn get_captcha(mut cookies: Cookies) -> Content<Vec<u8>> {
+#[get("/captcha?<channel>")]
+pub fn get_captcha(mut channel: usize, mut cookies: Cookies) -> Content<Vec<u8>> {
+    if channel >= COOKIE_NAMES.len() {
+        channel = 0;
+    }
+
     // 캡차 생성.
     let (answer, img_bytes) = captcha::gen(Difficulty::Medium)
         .as_tuple()
@@ -85,15 +93,15 @@ pub fn get_captcha(mut cookies: Cookies) -> Content<Vec<u8>> {
     };
 
     // 쿠키에 캡차 아이디 저장.
-    cookies.add_private(Cookie::new(COOKIE_NAME, captcha_id));
+    cookies.add_private(Cookie::new(COOKIE_NAMES[channel], captcha_id));
 
     // 캡차 이미지 반환.
     Content(ContentType::PNG, img_bytes)
 }
 
-#[get("/test-captcha?<answer>")]
-pub fn test_captcha(answer: String, cookies: Cookies) -> &'static str {
-    if verify_and_remove_captcha(cookies, &answer) {
+#[get("/test-captcha?<channel>&<answer>")]
+pub fn test_captcha(channel: usize, answer: String, cookies: Cookies) -> &'static str {
+    if verify_and_remove_captcha(cookies, channel, &answer) {
         "Success!"
     }
     else {
