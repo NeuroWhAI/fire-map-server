@@ -97,6 +97,7 @@ fn main() {
         shelter_route::get_shelter_map,
     ])
     .mount("/", routes![
+        cctv_sys::get_cctv,
         cctv_sys::get_cctv_map,
     ])
     .launch();

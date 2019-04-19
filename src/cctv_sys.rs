@@ -4,10 +4,12 @@ use std::{
     sync::RwLock,
     time::Duration,
     clone::Clone,
+    collections::HashMap,
 };
 use rocket::{
     response::{
         content::Json,
+        status::NotFound,
     },
 };
 use quick_xml::{
@@ -25,6 +27,9 @@ lazy_static! {
     };
     static ref CCTV_DATA: RwLock<String> = {
         RwLock::new(String::new())
+    };
+    static ref CCTV_LIST: RwLock<HashMap<String, CctvData>> = {
+        RwLock::new(HashMap::new())
     };
 }
 
@@ -74,8 +79,9 @@ impl Clone for CctvData {
 
 
 pub fn init_cctv_sys() -> thread::JoinHandle<()> {
-    *CCTV_DATA.write().unwrap() = get_cctv_data()
-        .expect("Fail to get CCTV data");
+    update_cctv_cache(get_cctv_data(false)
+        .expect("Fail to get CCTV data"));
+
     thread::spawn(cctv_job)
 }
 
@@ -84,15 +90,29 @@ pub fn get_cctv_map() -> Json<String> {
     Json(CCTV_DATA.read().unwrap().clone())
 }
 
+#[get("/cctv?<name>")]
+pub fn get_cctv(name: String) -> Result<Json<String>, NotFound<String>> {
+    let list = CCTV_LIST.read().unwrap();
+
+    list.get(&name)
+        .ok_or(NotFound("There is no CCTV with that name".into()))
+        .map(|tv| {
+            Json(json!({
+                "url": tv.url,
+                "latitude": tv.latitude,
+                "longitude": tv.longitude,
+                "name": tv.name,
+            }).to_string())
+        })
+}
+
 fn cctv_job() {
     thread::sleep(Duration::new(60 * 3, 0));
 
     loop {
-        match get_cctv_data() {
+        match get_cctv_data(true) {
             Ok(data) => {
-                {
-                    *CCTV_DATA.write().unwrap() = data;
-                }
+                update_cctv_cache(data);
                 thread::sleep(Duration::new(60 * 3, 0));
             }
             _ => thread::sleep(Duration::new(60 * 1, 0))
@@ -100,19 +120,64 @@ fn cctv_job() {
     }
 }
 
-fn get_cctv_data() -> Result<String, String> {
-    let args = format!("key={}&ReqType=2&MinX=120&MaxX=150&MinY=30&MaxY=40&type=ex", *API_KEY);
-    let result = reqwest::get(&format!("http://openapi.its.go.kr:8081/api/NCCTVInfo?{}", args))
-        .and_then(|mut res| res.text());
+fn update_cctv_cache(cctvs: Vec<CctvData>) {
+    {
+        *CCTV_DATA.write().unwrap() = stringify_cctvs(&cctvs);
+    }
 
-    match result {
-        Ok(data) => parse_cctv_data(data),
-        Err(err) => Err(err.to_string()),
+    for tv in cctvs {
+        let mut list = CCTV_LIST.write().unwrap();
+
+        if let Some(cache) = list.get_mut(&tv.name) {
+            *cache = tv;
+        }
+        else {
+            list.insert(tv.name.clone(), tv);
+        }
     }
 }
 
-fn parse_cctv_data(xml_str: String) -> Result<String, String> {
-    let mut reader = xml::Reader::from_str(&xml_str);
+fn get_cctv_data(allow_error: bool) -> Result<Vec<CctvData>, String> {
+    let args = format!("key={}&ReqType=2&MinX=120&MaxX=150&MinY=30&MaxY=40", *API_KEY);
+    let url = format!("http://openapi.its.go.kr:8081/api/NCCTVInfo?{}", args);
+    let ex_result = reqwest::get(&format!("{}&type=ex", url))
+        .and_then(|mut res| res.text());
+    let its_result = reqwest::get(&format!("{}&type=its", url))
+        .and_then(|mut res| res.text());
+
+    match (ex_result, its_result) {
+        (Ok(ex), Ok(its)) => parse_cctv_data(&ex).and_then(|mut v_ex| {
+            parse_cctv_data(&its).map(|mut v_its| {
+                v_its.append(&mut v_ex);
+                v_its
+            })
+        }),
+        (Ok(ref ex), Err(_)) if allow_error => parse_cctv_data(ex),
+        (Err(_), Ok(ref its)) if allow_error => parse_cctv_data(its),
+        (_, Err(err)) => Err(err.to_string()),
+        (Err(err), _) => Err(err.to_string()),
+    }
+}
+
+fn stringify_cctvs(cctvs: &Vec<CctvData>) -> String {
+    let part_cctvs = cctvs.iter()
+        .map(|tv| {
+            json!({
+                "latitude": tv.latitude,
+                "longitude": tv.longitude,
+                "name": tv.name,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    json!({
+        "cctvs": part_cctvs,
+        "size": part_cctvs.len(),
+    }).to_string()
+}
+
+fn parse_cctv_data(xml_str: &String) -> Result<Vec<CctvData>, String> {
+    let mut reader = xml::Reader::from_str(xml_str);
     reader.trim_text(true);
 
     let mut buf = Vec::new();
@@ -129,7 +194,9 @@ fn parse_cctv_data(xml_str: String) -> Result<String, String> {
             Ok(Event::End(ref e)) => {
                 match e.name() {
                     b"data" => {
-                        cctvs.push(data.clone());
+                        if data.is_valid() {
+                            cctvs.push(data.clone());
+                        }
                         data.clear();
                     },
                     _ => (),
@@ -156,20 +223,5 @@ fn parse_cctv_data(xml_str: String) -> Result<String, String> {
         buf.clear();
     }
 
-    let part_cctvs = cctvs.iter()
-        .filter(|tv| tv.is_valid())
-        .map(|tv| {
-            json!({
-                "url": tv.url,
-                "latitude": tv.latitude,
-                "longitude": tv.longitude,
-                "name": tv.name,
-            })
-        })
-        .collect::<Vec<_>>();
-
-    Ok(json!({
-        "cctvs": part_cctvs,
-        "size": part_cctvs.len(),
-    }).to_string())
+    Ok(cctvs.into_iter().collect())
 }
