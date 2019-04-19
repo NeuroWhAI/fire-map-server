@@ -13,7 +13,6 @@ use chrono::Utc;
 
 use models::*;
 use schema::reports::dsl::{self as r_dsl};
-use schema::bad_reports::dsl::{self as bad_dsl};
 
 
 thread_local! {
@@ -60,14 +59,6 @@ pub fn delete_report(id: i32) -> QueryResult<usize> {
     DB_CONN.with(|conn| {
         diesel::delete(r_dsl::reports.find(id))
             .execute(conn)
-    })
-}
-
-pub fn get_bad_report(id: i32) -> QueryResult<BadReport> {
-    DB_CONN.with(|conn| {
-        bad_dsl::bad_reports
-            .find(id)
-            .first(conn)
     })
 }
 

@@ -128,6 +128,25 @@ impl ReportForm {
 }
 
 
+#[derive(FromForm)]
+pub struct BadReportForm {
+    captcha: String,
+    id: i32,
+    reason: String,
+}
+
+impl BadReportForm {
+    fn verify_error(&self) -> Option<&'static str> {
+        if self.reason.len() >= 65536 {
+            Some("The maximum length of the reason is 65536")
+        }
+        else {
+            None
+        }
+    }
+}
+
+
 #[get("/report?<id>")]
 pub fn get_report(id: i32) -> JsonResult {
     let result = db::get_report(id);
@@ -357,25 +376,33 @@ pub fn delete_report(id: i32, user_id: String, user_pwd: String)
     }
 }
 
-#[post("/bad-report?<id>&<captcha>")]
-pub fn post_bad_report(id: i32, captcha: String, cookies: Cookies) -> StringResult {
-    if !verify_and_remove_captcha(cookies, 2, &captcha) {
+#[post("/bad-report", format="application/x-www-form-urlencoded", data="<form>")]
+pub fn post_bad_report(form: Option<Form<BadReportForm>>, cookies: Cookies) -> StringResult {
+    if form.is_none() {
+        return make_string_error("Invalid form".into());
+    }
+
+    let form = form.unwrap();
+
+
+    if let Some(err) = form.verify_error() {
+        return make_string_error(err.to_string());
+    }
+
+    if !verify_and_remove_captcha(cookies, 2, &form.captcha) {
         return make_string_error("Wrong captcha".into());
     }
 
-    if db::get_report(id).is_ok() {
-        if db::get_bad_report(id).is_ok() {
-            make_string_result(id.to_string())
-        }
-        else {
-            let result = db::insert_bad_report(&db::models::NewBadReport {
-                id
-            });
 
-            match result {
-                Ok(r) => make_string_result(r.id.to_string()),
-                Err(err) => make_string_error(err.to_string()),
-            }
+    if db::get_report(form.id).is_ok() {
+        let result = db::insert_bad_report(&db::models::NewBadReport {
+            report_id: form.id,
+            reason: form.reason.clone(),
+        });
+
+        match result {
+            Ok(r) => make_string_result(r.id.to_string()),
+            Err(err) => make_string_error(err.to_string()),
         }
     }
     else {

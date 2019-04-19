@@ -31,10 +31,13 @@ pub struct NewReport {
 #[derive(Queryable)]
 pub struct BadReport {
     pub id: i32,
+    pub report_id: i32,
+    pub reason: String,
 }
 
 #[derive(Insertable)]
 #[table_name="bad_reports"]
 pub struct NewBadReport {
-    pub id: i32,
+    pub report_id: i32,
+    pub reason: String,
 }

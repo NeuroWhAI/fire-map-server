@@ -10,5 +10,7 @@ create table reports (
 	img_path text
 );
 create table bad_reports (
-	id integer not null primary key
+	id serial not null primary key,
+	report_id integer not null,
+	reason text
 );

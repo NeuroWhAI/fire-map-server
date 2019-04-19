@@ -15,5 +15,7 @@ table! {
 table! {
     bad_reports (id) {
         id -> Integer,
+        report_id -> Integer,
+        reason -> Text,
     }
 }
