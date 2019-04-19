@@ -333,6 +333,14 @@ pub fn delete_report(id: i32, user_id: String, user_pwd: String)
     match result {
         Ok(report) => {
             if report.user_id == user_id && report.user_pwd == hashed_pwd {
+                // 이미지 파일이 있다면 삭제.
+                if report.img_path.len() > 0 {
+                    let img_path = Path::new(crate::STATIC_DIR).join(&report.img_path);
+                    if img_path.exists() && img_path.is_file() {
+                        let _ = fs::remove_file(img_path);
+                    }
+                }
+                
                 // 삭제하고 결과 반환.
                 let del_result = db::delete_report(id);
                 match del_result {
