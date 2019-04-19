@@ -5,32 +5,14 @@
     <title>Test</title>
 </head>
 <body>
-    <script>
-        function onSubmit() {
-            var id = document.getElementById("id").value;
-            var captcha = document.getElementById("captcha").value;
-
-            var req = new XMLHttpRequest();
-            req.onload = function() {
-                alert(req.responseText);
-            }
-            req.onerror = function() {
-                alert("Fail.");
-            }
-            req.onloadend = function() {
-                btn_upload.disabled = false;
-            }
-
-            req.open("POST", `http://localhost:8288/bad-report?id=${id}&captcha=${captcha}`);
-            req.send();
-        }
-    </script>
     <img src="http://localhost:8288/captcha?channel=2">
-    <div>
+    <form action="http://localhost:8288/bad-report" method="POST" enctype="application/x-www-form-urlencoded">
         Captcha : <input type="text" name="captcha" id="captcha"/>
         <br>
-        ID : <input type="text" name="id" id="id"/>
-        <button onclick="onSubmit();">Execute</button>
-    </div>
+        Report ID : <input type="text" name="id" id="id"/>
+        <br>
+        Reason : <input type="text" name="reason" id="reason"/>
+        <button type="submit">Execute</button>
+    </form>
 </body>
 </html>
