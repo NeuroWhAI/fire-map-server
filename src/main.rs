@@ -45,8 +45,8 @@ const TEST_DIR: &'static str = "test/";
 
 
 #[get("/")]
-fn index() -> &'static str {
-    "Fire Map Server"
+fn index() -> Option<NamedFile> {
+    NamedFile::open(Path::new(STATIC_DIR).join("index.html")).ok()
 }
 
 #[get("/<file..>")]
