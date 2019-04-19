@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test</title>
+</head>
+<body>
+    <script>
+        function onSubmit() {
+            var id = document.getElementById("id").value;
+            var captcha = document.getElementById("captcha").value;
+
+            var req = new XMLHttpRequest();
+            req.onload = function() {
+                alert(req.responseText);
+            }
+            req.onerror = function() {
+                alert("Fail.");
+            }
+            req.onloadend = function() {
+                btn_upload.disabled = false;
+            }
+
+            req.open("POST", `http://localhost:8288/bad-report?id=${id}&captcha=${captcha}`);
+            req.send();
+        }
+    </script>
+    <img src="http://localhost:8288/captcha?channel=2">
+    <div>
+        Captcha : <input type="text" name="captcha" id="captcha"/>
+        <br>
+        ID : <input type="text" name="id" id="id"/>
+        <button onclick="onSubmit();">Execute</button>
+    </div>
+</body>
+</html>

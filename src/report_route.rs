@@ -356,3 +356,29 @@ pub fn delete_report(id: i32, user_id: String, user_pwd: String)
         _ => make_string_error("Not found".into())
     }
 }
+
+#[post("/bad-report?<id>&<captcha>")]
+pub fn post_bad_report(id: i32, captcha: String, cookies: Cookies) -> StringResult {
+    if !verify_and_remove_captcha(cookies, 2, &captcha) {
+        return make_string_error("Wrong captcha".into());
+    }
+
+    if db::get_report(id).is_ok() {
+        if db::get_bad_report(id).is_ok() {
+            make_string_result(id.to_string())
+        }
+        else {
+            let result = db::insert_bad_report(&db::models::NewBadReport {
+                id
+            });
+
+            match result {
+                Ok(r) => make_string_result(r.id.to_string()),
+                Err(err) => make_string_error(err.to_string()),
+            }
+        }
+    }
+    else {
+        make_string_error("Not exists".into())
+    }
+}

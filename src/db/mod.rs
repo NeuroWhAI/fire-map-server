@@ -12,7 +12,8 @@ use diesel::result::QueryResult;
 use chrono::Utc;
 
 use models::*;
-use schema::reports::dsl::{self};
+use schema::reports::dsl::{self as r_dsl};
+use schema::bad_reports::dsl::{self as bad_dsl};
 
 
 thread_local! {
@@ -33,15 +34,15 @@ pub fn get_reports_within(time: Duration) -> QueryResult<Vec<Report>> {
     let filter_time = now - time;
 
     DB_CONN.with(|conn| {
-        dsl::reports
-            .filter(dsl::created_time.gt(filter_time))
+        r_dsl::reports
+            .filter(r_dsl::created_time.gt(filter_time))
             .load::<Report>(conn)
     })
 }
 
 pub fn get_report(id: i32) -> QueryResult<Report> {
     DB_CONN.with(|conn| {
-        dsl::reports
+        r_dsl::reports
             .find(id)
             .first(conn)
     })
@@ -57,7 +58,23 @@ pub fn insert_report(report: &NewReport) -> QueryResult<Report> {
 
 pub fn delete_report(id: i32) -> QueryResult<usize> {
     DB_CONN.with(|conn| {
-        diesel::delete(dsl::reports.find(id))
+        diesel::delete(r_dsl::reports.find(id))
             .execute(conn)
+    })
+}
+
+pub fn get_bad_report(id: i32) -> QueryResult<BadReport> {
+    DB_CONN.with(|conn| {
+        bad_dsl::bad_reports
+            .find(id)
+            .first(conn)
+    })
+}
+
+pub fn insert_bad_report(report: &NewBadReport) -> QueryResult<BadReport> {
+    DB_CONN.with(|conn| {
+        diesel::insert_into(schema::bad_reports::table)
+            .values(report)
+            .get_result::<BadReport>(conn)
     })
 }

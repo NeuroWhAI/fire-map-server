@@ -9,3 +9,6 @@ create table reports (
 	description text,
 	img_path text
 );
+create table bad_reports (
+	id integer not null primary key
+);

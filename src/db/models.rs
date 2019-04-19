@@ -1,5 +1,5 @@
 use std::time::SystemTime;
-use super::schema::reports;
+use super::schema::*;
 
 
 #[derive(Queryable)]
@@ -26,4 +26,15 @@ pub struct NewReport {
     pub lvl: i32,
     pub description: String,
     pub img_path: String,
+}
+
+#[derive(Queryable)]
+pub struct BadReport {
+    pub id: i32,
+}
+
+#[derive(Insertable)]
+#[table_name="bad_reports"]
+pub struct NewBadReport {
+    pub id: i32,
 }

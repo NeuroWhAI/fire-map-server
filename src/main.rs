@@ -92,6 +92,7 @@ fn main() {
         report_route::post_report,
         report_route::delete_report,
         report_route::post_upload_image,
+        report_route::post_bad_report,
     ])
     .mount("/", routes![
         shelter_route::get_shelter_map,

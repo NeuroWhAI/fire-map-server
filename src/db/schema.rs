@@ -11,3 +11,9 @@ table! {
         img_path -> Text,
     }
 }
+
+table! {
+    bad_reports (id) {
+        id -> Integer,
+    }
+}
