@@ -13,6 +13,7 @@ mod captcha_sys;
 mod report_route;
 mod shelter_route;
 mod cctv_sys;
+mod fire_sys;
 
 
 use std::{env, env::VarError};
@@ -62,6 +63,7 @@ fn get_static_file(file: PathBuf) -> Option<NamedFile> {
 
 fn main() {
     let cctv_task = cctv_sys::init_cctv_sys();
+    let fire_task = fire_sys::init_fire_sys();
 
 
     create_dir_all(Path::new(STATIC_DIR).join(report_route::IMAGE_PUBLIC_DIR))
@@ -101,8 +103,12 @@ fn main() {
         cctv_sys::get_cctv,
         cctv_sys::get_cctv_map,
     ])
+    .mount("/", routes![
+        fire_sys::get_fire_warning,
+    ])
     .launch();
 
 
     cctv_task.join().unwrap();
+    fire_task.join().unwrap();
 }
