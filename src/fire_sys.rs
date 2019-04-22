@@ -40,22 +40,25 @@ fn fire_job() {
     loop {
         let uri_result = get_fire_warning_image_uri();
 
-        if let Ok(ref uri) = uri_result {
-            if &*WARNING_IMG_URI.read().unwrap() == uri {
+        if let Ok(uri) = uri_result {
+            let cached = {
+                &*WARNING_IMG_URI.read().unwrap() == &uri 
+            };
+
+            if cached {
                 thread::sleep(Duration::new(60 * 5, 0));
                 continue;
             }
-        }
-
-        let bytes_result = uri_result
-            .and_then(|uri| get_fire_warning_image(&uri));
-
-        match bytes_result {
-            Ok(bytes) => {
-                update_fire_image(bytes);
-                thread::sleep(Duration::new(60 * 5, 0));
+            else {
+                match get_fire_warning_image(&uri) {
+                    Ok(bytes) => {
+                        update_fire_image(bytes);
+                        update_fire_image_uri(uri);
+                        thread::sleep(Duration::new(60 * 5, 0));
+                    },
+                    _ => thread::sleep(Duration::new(60 * 1, 0)),
+                }
             }
-            _ => thread::sleep(Duration::new(60 * 1, 0))
         }
     }
 }
