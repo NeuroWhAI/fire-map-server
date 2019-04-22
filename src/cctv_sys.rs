@@ -5,6 +5,7 @@ use std::{
     time::Duration,
     clone::Clone,
     collections::HashMap,
+    path::Path,
 };
 use rocket::{
     response::{
@@ -204,7 +205,7 @@ fn parse_cctv_data(xml_str: &String) -> Result<Vec<CctvData>, String> {
             }
             Ok(Event::Text(e)) => {
                 match name.as_slice() {
-                    b"cctvurl" => data.url = e.unescape_and_decode(&reader).unwrap_or_default(),
+                    b"cctvurl" => data.url = convert_cctv_url(&e.unescape_and_decode(&reader).unwrap_or_default()),
                     b"coordy" => data.latitude = e.unescape_and_decode(&reader)
                         .and_then(|s| s.parse::<f32>().map_err(|e| UnexpectedToken(e.to_string())))
                         .unwrap_or_default(),
@@ -224,4 +225,20 @@ fn parse_cctv_data(xml_str: &String) -> Result<Vec<CctvData>, String> {
     }
 
     Ok(cctvs.into_iter().collect())
+}
+
+fn convert_cctv_url(url: &String) -> String {
+    let route = Path::new(url).strip_prefix("http://cctvsec.ktict.co.kr/");
+
+    match route {
+        Ok(route) => {
+            let converted = Path::new("/cctv/").join(route);
+
+            match converted.to_str() {
+                Some(converted_url) => converted_url.to_owned(),
+                None => url.clone(),
+            }
+        },
+        Err(_) => url.clone(),
+    }
 }
