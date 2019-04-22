@@ -232,7 +232,7 @@ fn convert_cctv_url(url: &String) -> String {
 
     match route {
         Ok(route) => {
-            let converted = Path::new("/cctv/").join(route);
+            let converted = Path::new("/cctv-proxy/").join(route);
 
             match converted.to_str() {
                 Some(converted_url) => converted_url.to_owned(),
