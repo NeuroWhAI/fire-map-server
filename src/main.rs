@@ -105,6 +105,7 @@ fn main() {
     ])
     .mount("/", routes![
         fire_sys::get_fire_warning,
+        fire_sys::get_fire_event_map,
     ])
     .launch();
 
