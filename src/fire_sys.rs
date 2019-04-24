@@ -73,7 +73,7 @@ fn fire_job() {
 
         if let Ok(uri) = uri_result {
             let missed = {
-                &*WARNING_IMG_URI.read().unwrap() == &uri 
+                &*WARNING_IMG_URI.read().unwrap() != &uri 
             };
 
             if missed {
