@@ -1,7 +1,7 @@
 use std::{
     time::{UNIX_EPOCH, Duration, Instant},
     sync::RwLock,
-    fs::{self},
+    fs,
     path::Path,
     io::{self, Read, Write},
 };
@@ -16,8 +16,8 @@ use rocket::{
 };
 use serde_json::json;
 use chrono::Utc;
-use crate::db::{self};
-use crate::util::{self};
+use crate::db;
+use crate::util;
 use crate::captcha_sys::verify_and_remove_captcha;
 
 

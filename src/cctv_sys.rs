@@ -1,6 +1,6 @@
 use std::{
     env,
-    thread::{self},
+    thread,
     sync::RwLock,
     time::Duration,
     clone::Clone,

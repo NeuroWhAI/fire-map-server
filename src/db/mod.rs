@@ -12,7 +12,7 @@ use diesel::result::QueryResult;
 use chrono::Utc;
 
 use models::*;
-use schema::reports::dsl::{self as r_dsl};
+use schema::reports::dsl as r_dsl;
 
 
 thread_local! {

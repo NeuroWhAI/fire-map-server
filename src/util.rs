@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 
 use rand::{
     thread_rng, Rng,
-    distributions::{self},
+    distributions,
 };
 
 

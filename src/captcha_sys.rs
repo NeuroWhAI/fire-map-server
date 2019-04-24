@@ -8,7 +8,7 @@ use rocket::{
     response::Content,
 };
 use captcha::{self, Difficulty};
-use crate::util::{self};
+use crate::util;
 
 
 lazy_static! {

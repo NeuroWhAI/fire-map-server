@@ -1,4 +1,4 @@
-use std::fs::{self};
+use std::fs;
 use rocket::{
     response::{
         status::BadRequest,

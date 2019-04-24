@@ -1,5 +1,5 @@
 use std::{
-    thread::{self},
+    thread,
     sync::RwLock,
     time::Duration,
 };
