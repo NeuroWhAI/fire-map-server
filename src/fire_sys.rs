@@ -130,15 +130,15 @@ fn get_fire_warning_image_uri() -> Result<String, String> {
         Ok(html) => {
             let uri_opt = html.find("산불경보")
                 .and_then(|index| {
-                    (&html[index..]).find("intro_img04.png")
-                        .or((&html[index..]).find("intro_img05.png"))
-                        .or((&html[index..]).find("intro_img06.png"))
-                        .or((&html[index..]).find("intro_img07.png"))
+                    html[index..].find("intro_img04.png")
+                        .or(html[index..].find("intro_img05.png"))
+                        .or(html[index..].find("intro_img06.png"))
+                        .or(html[index..].find("intro_img07.png"))
                         .and_then(|offset| Some(index + offset))
                 })
-                .and_then(|index| (&html[..index]).rfind('"'))
+                .and_then(|index| html[..index].rfind('"'))
                 .and_then(|index| {
-                    (&html[(index + 1)..]).find('"')
+                    html[(index + 1)..].find('"')
                         .and_then(|offset| Some(index + 1 + offset))
                         .and_then(|end_index| Some(&html[(index + 1)..end_index]))
                 });
