@@ -15,6 +15,7 @@ mod shelter_route;
 mod cctv_sys;
 mod fire_sys;
 mod wind_sys;
+mod active_fire_sys;
 
 
 use std::{env, env::VarError};
@@ -66,6 +67,7 @@ fn main() {
     let cctv_task = cctv_sys::init_cctv_sys();
     let fire_task = fire_sys::init_fire_sys();
     let wind_task = wind_sys::init_wind_sys();
+    let active_fire_task = active_fire_sys::init_active_fire_sys();
 
 
     create_dir_all(Path::new(STATIC_DIR).join(report_route::IMAGE_PUBLIC_DIR))
@@ -113,10 +115,14 @@ fn main() {
         wind_sys::get_wind_map_metadata,
         wind_sys::get_wind_map,
     ])
+    .mount("/", routes![
+        active_fire_sys::get_active_fire_map,
+    ])
     .launch();
 
 
     cctv_task.join().unwrap();
     fire_task.join().unwrap();
     wind_task.join().unwrap();
+    active_fire_task.join().unwrap();
 }
