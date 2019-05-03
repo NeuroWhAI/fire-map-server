@@ -21,6 +21,7 @@ struct FireRecord {
     latitude: f64,
     longitude: f64,
     brightness: f32,
+    radiative_power: f32,
     time: i64,
 }
 
@@ -74,6 +75,7 @@ fn get_fire_data() -> Result<String, String> {
             "latitude": r.latitude,
             "longitude": r.longitude,
             "bright": r.brightness,
+            "power": r.radiative_power,
             "time": r.time,
         })
     }).collect::<Vec<_>>();
@@ -91,7 +93,7 @@ fn parse_fire_data(uri: &str) -> Result<Vec<FireRecord>, String> {
         .map(|csv| {
             csv.lines().skip(1)
                 .map(|row| row.split(',').collect())
-                .filter(|records: &Vec<&str>| records.len() >= 9)
+                .filter(|records: &Vec<&str>| records.len() >= 12)
                 .filter(|records| {
                     // Only high confidence data.
                     match records[8] {
@@ -106,6 +108,7 @@ fn parse_fire_data(uri: &str) -> Result<Vec<FireRecord>, String> {
                     let lat_res = records[0].parse();
                     let lon_res = records[1].parse();
                     let bright_res = records[2].parse();
+                    let power_res = records[11].parse();
 
                     let date_str = records[5];
                     let time_str = format!("{:0>4}", records[6]);
@@ -113,11 +116,12 @@ fn parse_fire_data(uri: &str) -> Result<Vec<FireRecord>, String> {
                     let time_res = NaiveDateTime::parse_from_str(&date_time_str,
                         "%Y-%m-%d %H%M");
 
-                    match (lat_res, lon_res, bright_res, time_res) {
-                        (Ok(lat), Ok(lon), Ok(bright), Ok(time)) => Some(FireRecord {
+                    match (lat_res, lon_res, bright_res, power_res, time_res) {
+                        (Ok(lat), Ok(lon), Ok(bright), Ok(power), Ok(time)) => Some(FireRecord {
                             latitude: lat,
                             longitude: lon,
                             brightness: bright,
+                            radiative_power: power,
                             time: time.timestamp(),
                         }),
                         _ => None
