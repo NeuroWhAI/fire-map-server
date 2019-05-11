@@ -40,12 +40,17 @@ pub fn get_active_fire_map() -> Json<String> {
 }
 
 fn active_fire_job() -> Duration {
+    info!("Start job");
+
     match get_fire_data() {
         Ok(json) => {
             update_fire_data(json);
             Duration::new(60 * 15, 0)
         },
-        Err(_) => Duration::new(60 * 1, 0),
+        Err(err) => {
+            warn!("Fail to get fire data: {}", err);
+            Duration::new(60 * 1, 0)
+        },
     }
 }
 
@@ -62,8 +67,14 @@ fn get_fire_data() -> Result<String, String> {
             m.append(&mut v);
             m
         },
-        (Err(_), Ok(v)) => v,
-        (Ok(m), Err(_)) => m,
+        (Err(err), Ok(v)) => {
+            warn!("Fail to parse MODIS: {}", err);
+            v
+        },
+        (Ok(m), Err(err)) => {
+            warn!("Fail to parse VIIRS: {}", err);
+            m
+        },
         (Err(err), Err(_)) => return Err(err),
     };
 

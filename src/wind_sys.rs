@@ -174,12 +174,17 @@ pub fn get_wind_map(id: u64) -> Option<Content<Vec<u8>>> {
 
 
 fn wind_job() -> Duration {
+    info!("Start job");
+
     match get_wind_img() {
         Ok((id, metadata, img)) => {
             update_wind_map(id, metadata, img);
             Duration::new(60 * 5, 0)
         },
-        Err(_) => Duration::new(60 * 1, 0),
+        Err(err) => {
+            warn!("Fail to get wind image: {}", err);
+            Duration::new(60 * 1, 0)
+        },
     }
 }
 

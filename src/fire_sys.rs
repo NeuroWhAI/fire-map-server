@@ -59,6 +59,8 @@ pub fn get_fire_event_map() -> Json<String> {
 }
 
 fn fire_warning_image_job() -> Duration {
+    info!("Start job for warning image");
+
     let mut failed = true;
 
     let uri_result = get_fire_warning_image_uri();
@@ -75,12 +77,17 @@ fn fire_warning_image_job() -> Duration {
                     update_fire_image_uri(uri);
                     failed = false;
                 },
-                _ => {},
+                Err(err) => {
+                    warn!("Fail to get warning image: {}", err);
+                },
             }
         }
         else {
             failed = false;
         }
+    }
+    else {
+        warn!("Fail to get URI of warning image");
     }
 
     if failed {
@@ -92,12 +99,17 @@ fn fire_warning_image_job() -> Duration {
 }
 
 fn fire_event_job() -> Duration {
+    info!("Start job for fire event");
+
     match get_fire_event_json() {
         Ok(data) => {
             update_fire_event_map(data);
             Duration::new(60 * 3, 0)
         },
-        Err(_) => Duration::new(60 * 1, 0),
+        Err(err) => {
+            warn!("Fail to get fire event: {}", err);
+            Duration::new(60 * 1, 0)
+        },
     }
 }
 

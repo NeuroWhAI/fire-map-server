@@ -5,10 +5,12 @@
 extern crate rand;
 #[macro_use] extern crate rocket;
 #[macro_use] extern crate diesel;
+#[macro_use] extern crate log;
 
 
 mod db;
 mod util;
+mod logger;
 mod task_scheduler;
 mod captcha_sys;
 mod report_route;
@@ -25,7 +27,9 @@ use std::fs::create_dir_all;
 use std::time::Duration;
 use rocket::response::NamedFile;
 use rocket::fairing::AdHoc;
+use log::LevelFilter;
 
+use crate::logger::Logger;
 use crate::task_scheduler::TaskSchedulerBuilder;
 
 
@@ -46,6 +50,8 @@ lazy_static! {
         dbg_envs.iter().any(|&v| v == *ROCKET_ENV)
     };
 }
+
+static LOGGER: Logger = Logger;
 
 const STATIC_DIR: &'static str = "static/";
 const TEST_DIR: &'static str = "test/";
@@ -68,6 +74,18 @@ fn get_static_file(file: PathBuf) -> Option<NamedFile> {
 
 
 fn main() {
+    let log_level = if *DEBUG {
+        LevelFilter::Info
+    }
+    else {
+        LevelFilter::Warn
+    };
+
+    log::set_logger(&LOGGER)
+        .map(|_| log::set_max_level(log_level))
+        .expect("Fail to set logger");
+
+
     let mut scheduler = TaskSchedulerBuilder::new()
         .n_workers(4)
         .period_resolution(Duration::new(0, 100/*ms*/ * 1_000_000));

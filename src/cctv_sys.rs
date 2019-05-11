@@ -109,12 +109,17 @@ pub fn get_cctv(name: String) -> Result<Json<String>, NotFound<String>> {
 }
 
 fn cctv_job() -> Duration {
+    info!("Start job");
+
     match get_cctv_data(true) {
         Ok(data) => {
             update_cctv_cache(data);
             Duration::new(60 * 3, 0)
         },
-        _ => Duration::new(60 * 1, 0),
+        Err(err) => {
+            warn!("Fail to get CCTV data: {}", err);
+            Duration::new(60 * 1, 0)
+        },
     }
 }
 
@@ -150,8 +155,14 @@ fn get_cctv_data(allow_error: bool) -> Result<Vec<CctvData>, String> {
                 v_its
             })
         }),
-        (Ok(ref ex), Err(_)) if allow_error => parse_cctv_data(ex),
-        (Err(_), Ok(ref its)) if allow_error => parse_cctv_data(its),
+        (Ok(ref ex), Err(ref err)) if allow_error => {
+            warn!("Fail to get ITS: {}", err);
+            parse_cctv_data(ex)
+        },
+        (Err(ref err), Ok(ref its)) if allow_error => {
+            warn!("Fail to get EX{}", err);
+            parse_cctv_data(its)
+        },
         (_, Err(err)) => Err(err.to_string()),
         (Err(err), _) => Err(err.to_string()),
     }
