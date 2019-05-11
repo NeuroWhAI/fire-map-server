@@ -1,6 +1,5 @@
 use std::{
     env,
-    thread,
     sync::RwLock,
     time::Duration,
     clone::Clone,
@@ -19,6 +18,8 @@ use quick_xml::{
     Error::UnexpectedToken,
 };
 use serde_json::json;
+
+use crate::task_scheduler::{Task, TaskSchedulerBuilder};
 
 
 lazy_static! {
@@ -79,11 +80,11 @@ impl Clone for CctvData {
 }
 
 
-pub fn init_cctv_sys() -> thread::JoinHandle<()> {
+pub fn init_cctv_sys(scheduler: &mut TaskSchedulerBuilder) {
     update_cctv_cache(get_cctv_data(false)
         .expect("Fail to get CCTV data"));
 
-    thread::spawn(cctv_job)
+    scheduler.add_task(Task::new(cctv_job, Duration::new(60 * 3, 0)));
 }
 
 #[get("/cctv-map")]
@@ -107,17 +108,13 @@ pub fn get_cctv(name: String) -> Result<Json<String>, NotFound<String>> {
         })
 }
 
-fn cctv_job() {
-    thread::sleep(Duration::new(60 * 3, 0));
-
-    loop {
-        match get_cctv_data(true) {
-            Ok(data) => {
-                update_cctv_cache(data);
-                thread::sleep(Duration::new(60 * 3, 0));
-            }
-            _ => thread::sleep(Duration::new(60 * 1, 0))
-        }
+fn cctv_job() -> Duration {
+    match get_cctv_data(true) {
+        Ok(data) => {
+            update_cctv_cache(data);
+            Duration::new(60 * 3, 0)
+        },
+        _ => Duration::new(60 * 1, 0),
     }
 }
 

@@ -1,5 +1,4 @@
 use std::{
-    thread,
     sync::RwLock,
     time::Duration,
 };
@@ -11,6 +10,8 @@ use rocket::{
     },
 };
 use serde_json::{Value as JsonValue, json};
+
+use crate::task_scheduler::{Task, TaskSchedulerBuilder};
 
 
 lazy_static! {
@@ -33,7 +34,7 @@ enum FireStatus {
 }
 
 
-pub fn init_fire_sys() -> thread::JoinHandle<()> {
+pub fn init_fire_sys(scheduler: &mut TaskSchedulerBuilder) {
     let img_uri = get_fire_warning_image_uri()
         .expect("Fail to get uri of fire warning image");
     update_fire_image_uri(img_uri.clone());
@@ -43,7 +44,8 @@ pub fn init_fire_sys() -> thread::JoinHandle<()> {
     update_fire_event_map(get_fire_event_json()
         .expect("Fail to get fire events"));
 
-    thread::spawn(fire_job)
+    scheduler.add_task(Task::new(fire_warning_image_job, Duration::new(60 * 5, 0)));
+    scheduler.add_task(Task::new(fire_event_job, Duration::new(60 * 3, 0)));
 }
 
 #[get("/fire-warning")]
@@ -56,47 +58,46 @@ pub fn get_fire_event_map() -> Json<String> {
     Json(FIRE_EVENT_MAP.read().unwrap().clone())
 }
 
-fn fire_job() {
-    thread::sleep(Duration::new(60 * 5, 0));
+fn fire_warning_image_job() -> Duration {
+    let mut failed = true;
 
-    loop {
-        let mut failed = false;
+    let uri_result = get_fire_warning_image_uri();
 
+    if let Ok(uri) = uri_result {
+        let missed = {
+            &*WARNING_IMG_URI.read().unwrap() != &uri 
+        };
 
-        match get_fire_event_json() {
-            Ok(data) => update_fire_event_map(data),
-            Err(_) => failed = true,
-        }
-
-
-        let uri_result = get_fire_warning_image_uri();
-
-        if let Ok(uri) = uri_result {
-            let missed = {
-                &*WARNING_IMG_URI.read().unwrap() != &uri 
-            };
-
-            if missed {
-                match get_fire_warning_image(&uri) {
-                    Ok(bytes) => {
-                        update_fire_image(bytes);
-                        update_fire_image_uri(uri);
-                    },
-                    _ => failed = true,
-                }
+        if missed {
+            match get_fire_warning_image(&uri) {
+                Ok(bytes) => {
+                    update_fire_image(bytes);
+                    update_fire_image_uri(uri);
+                    failed = false;
+                },
+                _ => {},
             }
         }
         else {
-            failed = true;
+            failed = false;
         }
+    }
 
+    if failed {
+        Duration::new(60 * 1, 0)
+    }
+    else {
+        Duration::new(60 * 5, 0)
+    }
+}
 
-        if failed {
-            thread::sleep(Duration::new(60 * 1, 0));
-        }
-        else {
-            thread::sleep(Duration::new(60 * 3, 0));
-        }
+fn fire_event_job() -> Duration {
+    match get_fire_event_json() {
+        Ok(data) => {
+            update_fire_event_map(data);
+            Duration::new(60 * 3, 0)
+        },
+        Err(_) => Duration::new(60 * 1, 0),
     }
 }
 

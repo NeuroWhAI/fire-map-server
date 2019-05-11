@@ -1,5 +1,4 @@
 use std::{
-    thread,
     sync::RwLock,
     time::Duration,
 };
@@ -8,6 +7,8 @@ use rocket::{
 };
 use serde_json::json;
 use chrono::NaiveDateTime;
+
+use crate::task_scheduler::{Task, TaskSchedulerBuilder};
 
 
 lazy_static! {
@@ -26,11 +27,11 @@ struct FireRecord {
 }
 
 
-pub fn init_active_fire_sys() -> thread::JoinHandle<()> {
+pub fn init_active_fire_sys(scheduler: &mut TaskSchedulerBuilder) {
     update_fire_data(get_fire_data()
         .expect("Fail to get active fire data"));
 
-    thread::spawn(active_fire_job)
+    scheduler.add_task(Task::new(active_fire_job, Duration::new(60 * 15, 0)));
 }
 
 #[get("/active-fire-map")]
@@ -38,17 +39,13 @@ pub fn get_active_fire_map() -> Json<String> {
     Json(FIRE_DATA.read().unwrap().clone())
 }
 
-fn active_fire_job() {
-    thread::sleep(Duration::new(60 * 15, 0));
-
-    loop {
-        match get_fire_data() {
-            Ok(json) => {
-                update_fire_data(json);
-                thread::sleep(Duration::new(60 * 15, 0));
-            },
-            Err(_) => thread::sleep(Duration::new(60 * 1, 0)),
-        }
+fn active_fire_job() -> Duration {
+    match get_fire_data() {
+        Ok(json) => {
+            update_fire_data(json);
+            Duration::new(60 * 15, 0)
+        },
+        Err(_) => Duration::new(60 * 1, 0),
     }
 }
 

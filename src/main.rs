@@ -9,6 +9,7 @@ extern crate rand;
 
 mod db;
 mod util;
+mod task_scheduler;
 mod captcha_sys;
 mod report_route;
 mod shelter_route;
@@ -21,8 +22,11 @@ mod active_fire_sys;
 use std::{env, env::VarError};
 use std::path::{Path, PathBuf};
 use std::fs::create_dir_all;
+use std::time::Duration;
 use rocket::response::NamedFile;
 use rocket::fairing::AdHoc;
+
+use crate::task_scheduler::TaskSchedulerBuilder;
 
 
 lazy_static! {
@@ -64,10 +68,16 @@ fn get_static_file(file: PathBuf) -> Option<NamedFile> {
 
 
 fn main() {
-    let cctv_task = cctv_sys::init_cctv_sys();
-    let fire_task = fire_sys::init_fire_sys();
-    let wind_task = wind_sys::init_wind_sys();
-    let active_fire_task = active_fire_sys::init_active_fire_sys();
+    let mut scheduler = TaskSchedulerBuilder::new()
+        .n_workers(4)
+        .period_resolution(Duration::new(0, 100/*ms*/ * 1_000_000));
+
+    cctv_sys::init_cctv_sys(&mut scheduler);
+    fire_sys::init_fire_sys(&mut scheduler);
+    wind_sys::init_wind_sys(&mut scheduler);
+    active_fire_sys::init_active_fire_sys(&mut scheduler);
+
+    let scheduler = scheduler.build();
 
 
     create_dir_all(Path::new(STATIC_DIR).join(report_route::IMAGE_PUBLIC_DIR))
@@ -121,8 +131,5 @@ fn main() {
     .launch();
 
 
-    cctv_task.join().unwrap();
-    fire_task.join().unwrap();
-    wind_task.join().unwrap();
-    active_fire_task.join().unwrap();
+    scheduler.join();
 }

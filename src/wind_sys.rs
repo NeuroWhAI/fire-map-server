@@ -2,7 +2,6 @@ use std::{
     f64,
     fs::File,
     io::{self, BufReader, BufRead, Write},
-    thread,
     sync::RwLock,
     time::Duration,
     collections::HashMap,
@@ -23,7 +22,9 @@ use cgmath::{Point2, Vector2};
 use spade::delaunay::{DelaunayTriangulation, DelaunayWalkLocate, FloatDelaunayTriangulation};
 use spade::HasPosition;
 use png::HasParameters;
+
 use crate::util;
+use crate::task_scheduler::{Task, TaskSchedulerBuilder};
 
 
 type Delaunay = FloatDelaunayTriangulation<WeightPoint, DelaunayWalkLocate>;
@@ -147,12 +148,12 @@ impl WeightPoint {
 }
 
 
-pub fn init_wind_sys() -> thread::JoinHandle<()> {
+pub fn init_wind_sys(scheduler: &mut TaskSchedulerBuilder) {
     let (id, metadata, img) = get_wind_img()
         .expect("Fail to get wind image");
     update_wind_map(id, metadata, img);
 
-    thread::spawn(wind_job)
+    scheduler.add_task(Task::new(wind_job, Duration::new(60 * 5, 0)));
 }
 
 #[get("/wind-map-metadata")]
@@ -172,17 +173,13 @@ pub fn get_wind_map(id: u64) -> Option<Content<Vec<u8>>> {
 }
 
 
-fn wind_job() {
-    thread::sleep(Duration::new(60 * 5, 0));
-
-    loop {
-        match get_wind_img() {
-            Ok((id, metadata, img)) => {
-                update_wind_map(id, metadata, img);
-                thread::sleep(Duration::new(60 * 5, 0));
-            },
-            Err(_) => thread::sleep(Duration::new(60 * 1, 0)),
-        }
+fn wind_job() -> Duration {
+    match get_wind_img() {
+        Ok((id, metadata, img)) => {
+            update_wind_map(id, metadata, img);
+            Duration::new(60 * 5, 0)
+        },
+        Err(_) => Duration::new(60 * 1, 0),
     }
 }
 
