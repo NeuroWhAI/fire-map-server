@@ -160,7 +160,7 @@ fn get_cctv_data(allow_error: bool) -> Result<Vec<CctvData>, String> {
             parse_cctv_data(ex)
         },
         (Err(ref err), Ok(ref its)) if allow_error => {
-            warn!("Fail to get EX{}", err);
+            warn!("Fail to get EX: {}", err);
             parse_cctv_data(its)
         },
         (_, Err(err)) => Err(err.to_string()),
