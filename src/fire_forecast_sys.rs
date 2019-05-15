@@ -1,4 +1,5 @@
 use std::{
+    fs,
     sync::RwLock,
     time::Duration,
 };
@@ -12,6 +13,11 @@ use crate::task_scheduler::{Task, TaskSchedulerBuilder};
 
 
 lazy_static! {
+    static ref DISTRICT_CODES: Vec<String> = {
+        fs::read_to_string("data/district_code.txt")
+            .map(|text| text.split(',').map(|s| s.to_owned()).collect())
+            .expect("Can't initialize district codes")
+    };
     static ref FORECAST_DATA: RwLock<String> = {
         RwLock::new(String::new())
     };
@@ -25,10 +31,10 @@ struct Forecast {
 
 
 pub fn init_fire_forecast_sys(scheduler: &mut TaskSchedulerBuilder) {
-    update_forecast_cache(get_forecast_data()
+    update_forecast_cache(get_forecast_data(256)
         .expect("Fail to get fire forecast data"));
 
-    scheduler.add_task(Task::new(forecast_job, Duration::new(60 * 15, 0)));
+    scheduler.add_task(Task::new(forecast_job, Duration::new(60 * 30, 0)));
 }
 
 #[get("/fire-forecast-map")]
@@ -40,10 +46,10 @@ pub fn get_fire_forecast_map() -> Json<String> {
 fn forecast_job() -> Duration {
     info!("Start job");
 
-    match get_forecast_data() {
+    match get_forecast_data(8) {
         Ok(data) => {
             update_forecast_cache(data);
-            Duration::new(60 * 15, 0)
+            Duration::new(60 * 30, 0)
         },
         Err(err) => {
             warn!("Fail to get fire forecast data: {}", err);
@@ -56,103 +62,64 @@ fn update_forecast_cache(json: String) {
     *FORECAST_DATA.write().unwrap() = json;
 }
 
-fn get_forecast_data() -> Result<String, String> {
-    reqwest::get("http://forestfire.nifos.go.kr/mobile/jsp/fireGrade.jsp")
+fn get_forecast_by_code(code: &str) -> Result<Forecast, String> {
+    let uri = format!("http://forestfire.nifos.go.kr/mobile/jsp/fireGrade.jsp?cd={}&subCd={}",
+        &code[..2], code);
+
+    reqwest::get(&uri)
         .and_then(|mut res| res.text())
         .map_err(|err| err.to_string())
         .and_then(|html| {
-            let begin_res = html.find(">전국<")
-                .and_then(|idx| html[idx..].find("<tr").map(|offset| idx + offset));
-            let end_res = begin_res.as_ref()
-                .and_then(|&begin| html[begin..].find("</table").map(|offset| begin + offset));
-
-            if let (Some(begin), Some(end)) = (begin_res, end_res) {
-                Ok((html, begin, end))
-            }
-            else {
-                Err("Fail to parse table".into())
-            }
-        })
-        .and_then(|(html, mut begin, end)| {
-            let mut table: Vec<Vec<_>> = Vec::new();
-
-            while begin < end {
-                let mut row = Vec::new();
-
-                let end_tr = html[begin..].find("</tr").map(|offset| begin + offset);
-                if end_tr.is_none() {
-                    return Err("Fail to parse forecast data".into());
-                }
-                let end_tr = end_tr.unwrap();
-
-                loop {
-                    let begin_res = html[begin..].find("<td").map(|offset| begin + offset);
-                    if begin_res.is_none() {
-                        break;
-                    }
-                    begin = begin_res.unwrap();
-
-                    if begin > end_tr {
-                        break;
-                    }
-
-                    let begin_res = html[begin..].find('>').map(|offset| begin + offset);
-                    if begin_res.is_none() {
-                        break;
-                    }
-                    begin = begin_res.unwrap();
-
-                    let end_td_res = html[begin..].find("</td").map(|offset| begin + offset);
-                    if end_td_res.is_none() {
-                        break;
-                    }
-                    let end_td = end_td_res.unwrap();
-
-                    row.push(util::extract_text_from_html(&html[(begin + 1)..end_td]));
-                }
-
-                if row.len() >= 3 {
-                    table.push(row);
-                }
-
-                let begin_res = html[end_tr..].find("<tr").map(|offset| end_tr + offset);
-                if begin_res.is_none() {
-                    break;
-                }
-                begin = begin_res.unwrap();
-            }
-
-            Ok(table)
-        })
-        .map(|table| {
-            let mut data = Vec::new();
-
-            for row in table {
-                let level = row[2].parse::<f32>();
-
-                if let Ok(lvl) = level {
-                    data.push(Forecast {
-                        code: row[0].clone(),
-                        level: lvl,
-                    });
-                }
-            }
-
-            data
-        })
-        .map(|total_forecasts| {
-            let part_forecasts = total_forecasts.into_iter()
-                .map(|forecast| {
-                    json!({
-                        "code": forecast.code,
-                        "lvl": forecast.level,
-                    })
+            html.find(">전국<")
+                .and_then(|idx| html[idx..].find("</table").map(|offset| idx + offset))
+                .and_then(|idx| html[..idx].rfind("<td"))
+                .and_then(|idx| html[idx..].find('>').map(|offset| idx + offset))
+                .and_then(|idx| html[idx..].find("</td").map(|offset| (idx + 1, idx + offset)))
+                .map(|(begin, end)| util::extract_text_from_html(&html[begin..end]))
+                .and_then(|level| level.parse().ok())
+                .map(|level| Forecast {
+                    code: code.to_owned(),
+                    level,
                 })
-                .collect::<Vec<_>>();
-
-            json!({
-                "forecasts": part_forecasts,
-                "size": part_forecasts.len(),
-            }).to_string()
+                .ok_or("Fail to parse fire forecast".into())
         })
+}
+
+fn get_forecast_data(retry_cnt: usize) -> Result<String, String> {
+    let mut left_retries = retry_cnt;
+    let mut total_forecasts = Vec::new();
+
+    for code in &*DISTRICT_CODES {
+        loop {
+            match get_forecast_by_code(code) {
+                Ok(forecast) => {
+                    total_forecasts.push(forecast);
+                    break;
+                },
+                Err(err) => {
+                    if left_retries > 0 {
+                        warn!("Retry({}/{}) to get {} forecast data", left_retries, retry_cnt, code);
+                        left_retries -= 1;
+                    }
+                    else {
+                        return Err(err);
+                    }
+                },
+            }
+        }
+    }
+
+    let part_forecasts = total_forecasts.into_iter()
+        .map(|forecast| {
+            json!({
+                "code": forecast.code,
+                "lvl": forecast.level,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    Ok(json!({
+        "forecasts": part_forecasts,
+        "size": part_forecasts.len(),
+    }).to_string())
 }
