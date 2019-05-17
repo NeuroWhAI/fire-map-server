@@ -13,6 +13,7 @@ use chrono::Utc;
 
 use models::*;
 use schema::reports::dsl as r_dsl;
+use schema::bad_reports::dsl as bad_dsl;
 
 
 thread_local! {
@@ -62,10 +63,24 @@ pub fn delete_report(id: i32) -> QueryResult<usize> {
     })
 }
 
+pub fn get_bad_report_list() -> QueryResult<Vec<BadReport>> {
+    DB_CONN.with(|conn| {
+        bad_dsl::bad_reports
+            .load::<BadReport>(conn)
+    })
+}
+
 pub fn insert_bad_report(report: &NewBadReport) -> QueryResult<BadReport> {
     DB_CONN.with(|conn| {
         diesel::insert_into(schema::bad_reports::table)
             .values(report)
             .get_result::<BadReport>(conn)
+    })
+}
+
+pub fn delete_bad_report(id: i32) -> QueryResult<usize> {
+    DB_CONN.with(|conn| {
+        diesel::delete(bad_dsl::bad_reports.find(id))
+            .execute(conn)
     })
 }

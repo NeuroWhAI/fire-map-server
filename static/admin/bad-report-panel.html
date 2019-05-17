@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Bad Report Panel</title>
+    <script>
+        function onBtnLoginClicked() {
+            let adminId = document.getElementById("txtAdminId").value;
+            let adminPwd = document.getElementById("txtAdminPwd").value;
+
+            var req = new XMLHttpRequest();
+            req.onload = function() {
+                if (req.status == 200 && req.response) {
+                    let json = req.response;
+
+                    let list = document.getElementById("listReports");
+                    list.innerHTML = ""; // Clear table.
+
+                    for (let i = 0; i < json.size; ++i) {
+                        let report = json.reports[i];
+
+                        let row = list.insertRow(0);
+                        row.insertCell(0).innerText = report.id;
+                        row.insertCell(1).innerText = report.report_id;
+                        row.insertCell(2).innerText = report.reason;
+                        row.insertCell(3).innerHTML = `
+                            <button onclick="onBtnAcceptClicked(${report.id}, ${report.report_id});">Accept</button>
+                            <button onclick="onBtnDismissClicked(${report.id});">Dismiss</button>
+                        `;
+                    }
+
+                    if (json.size == 0) {
+                        alert("No reports!");
+                    }
+                }
+                else if (req.response.error) {
+                    alert(req.response.error);
+                }
+                else {
+                    alert("Error: : "+ req.response);
+                }
+            }
+            req.responseType = 'json';
+            req.open("GET", `bad-report-list?admin_id=${adminId}&admin_pwd=${adminPwd}`);
+            req.send();
+        }
+
+        function onBtnAcceptClicked(id, reportId) {
+            let adminId = document.getElementById("txtAdminId").value;
+            let adminPwd = document.getElementById("txtAdminPwd").value;
+
+            var req = new XMLHttpRequest();
+            req.onload = function() {
+                if (this.status == 200) {
+                    alert("Accepted!");
+                }
+                else {
+                    alert(this.responseText);
+                }
+            }
+            req.open("DELETE", `/report?id=${reportId}&user_id=${adminId}&user_pwd=${adminPwd}`);
+            req.send();
+
+            // Remove a bad report too.
+            onBtnDismissClicked(id);
+        }
+
+        function onBtnDismissClicked(id) {
+            let adminId = document.getElementById("txtAdminId").value;
+            let adminPwd = document.getElementById("txtAdminPwd").value;
+
+            var req = new XMLHttpRequest();
+            req.onload = function() {
+                if (this.status == 200) {
+                    alert("Deleted!");
+                }
+                else {
+                    alert(this.responseText);
+                }
+            }
+            req.open("DELETE", `bad-report?id=${id}&admin_id=${adminId}&admin_pwd=${adminPwd}`);
+            req.send();
+        }
+    </script>
+</head>
+<body>
+    <h1>Bad Report Panel</h1>
+    
+    <div>
+        <b>Admin</b><br>
+        Id : <input type="text" id="txtAdminId"/><br>
+        Pwd : <input type="password" id="txtAdminPwd"/><br>
+        <button onclick="onBtnLoginClicked();">Login</button>
+    </div>
+
+    <br>
+
+    <table>
+        <caption>Bad Report List</caption>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Report ID</th>
+                <th>Reason</th>
+                <th>Control</th>
+            </tr>
+        </thead>
+        <tbody id="listReports"></tbody>
+    </table>
+</body>
+</html>

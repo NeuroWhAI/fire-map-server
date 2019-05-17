@@ -1,4 +1,5 @@
 use std::{
+    env,
     time::{UNIX_EPOCH, Duration},
     sync::RwLock,
     fs,
@@ -15,7 +16,7 @@ use rocket::{
     http::Cookies,
     data::Data,
 };
-use serde_json::json;
+use serde_json::{Value as JsonValue, json};
 use chrono::Utc;
 
 use crate::db;
@@ -29,6 +30,14 @@ type StringResult = Result<String, BadRequest<String>>;
 
 
 lazy_static! {
+    static ref ADMIN_ID: String = {
+        env::var("ADMIN_ID").expect("ADMIN_ID must be set")
+    };
+    static ref ADMIN_PWD: u64 = {
+        let sorted_pwd = env::var("ADMIN_PWD").expect("ADMIN_PWD must be set")
+            + PASSWORD_HASH_SORT;
+        util::calculate_hash(&sorted_pwd)
+    };
     static ref REPORT_MAP_CACHE: RwLock<String> = {
         RwLock::new(String::new())
     };
@@ -353,13 +362,14 @@ pub fn delete_report(id: i32, user_id: String, user_pwd: String)
     -> StringResult {
 
     let sorted_pwd = user_pwd + PASSWORD_HASH_SORT;
-    let hashed_pwd = util::calculate_hash(&sorted_pwd).to_string();
+    let hashed_pwd = util::calculate_hash(&sorted_pwd);
 
     let result = db::get_report(id);
 
     match result {
         Ok(report) => {
-            if report.user_id == user_id && report.user_pwd == hashed_pwd {
+            if (report.user_id == user_id && report.user_pwd == hashed_pwd.to_string())
+                || (*ADMIN_ID == user_id && *ADMIN_PWD == hashed_pwd) {
                 // 이미지 파일이 있다면 삭제.
                 if report.img_path.len() > 0 {
                     let img_path = Path::new(crate::STATIC_DIR).join(&report.img_path);
@@ -421,5 +431,62 @@ pub fn post_bad_report(form: Option<Form<BadReportForm>>, cookies: Cookies) -> S
     }
     else {
         make_string_error("Not exists".into())
+    }
+}
+
+#[get("/admin/bad-report-list?<admin_id>&<admin_pwd>")]
+pub fn get_bad_report_list(admin_id: String, admin_pwd: String) -> JsonResult {
+    let sorted_pwd = admin_pwd + PASSWORD_HASH_SORT;
+    let hashed_pwd = util::calculate_hash(&sorted_pwd);
+
+    if *ADMIN_ID == admin_id && *ADMIN_PWD == hashed_pwd {
+        let result = db::get_bad_report_list()
+            .map(|reports| reports.into_iter().map(|r| {
+                json!({
+                    "id": r.id,
+                    "report_id": r.report_id,
+                    "reason": r.reason,
+                })
+            }).collect::<Vec<JsonValue>>());
+
+        match result {
+            Ok(reports) => {
+                make_json_result(json!({
+                    "reports": reports,
+                    "size": reports.len(),
+                }).to_string())
+            },
+            Err(err) => {
+                make_json_error(json!({
+                    "error": err.to_string(),
+                }).to_string())
+            }
+        }
+    }
+    else {
+        make_json_error(json!({
+            "error": "Authentication failed!",
+        }).to_string())
+    }
+}
+
+#[delete("/admin/bad-report?<id>&<admin_id>&<admin_pwd>")]
+pub fn delete_bad_report(id: i32, admin_id: String, admin_pwd: String)
+    -> StringResult {
+
+    let sorted_pwd = admin_pwd + PASSWORD_HASH_SORT;
+    let hashed_pwd = util::calculate_hash(&sorted_pwd);
+
+    if *ADMIN_ID == admin_id && *ADMIN_PWD == hashed_pwd {
+        let result = db::delete_bad_report(id);
+
+        match result {
+            Ok(cnt) if cnt > 0 => make_string_result(cnt.to_string()),
+            Ok(_) => make_string_error("Not found".into()),
+            Err(err) => make_string_error(err.to_string()),
+        }
+    }
+    else {
+        make_string_error("Authentication failed!".into())
     }
 }

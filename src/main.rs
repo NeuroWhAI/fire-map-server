@@ -124,6 +124,8 @@ fn main() {
         report_sys::delete_report,
         report_sys::post_upload_image,
         report_sys::post_bad_report,
+        report_sys::get_bad_report_list,
+        report_sys::delete_bad_report,
     ])
     .mount("/", routes![
         shelter_route::get_shelter_map,
