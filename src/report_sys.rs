@@ -4,6 +4,7 @@ use std::{
     fs,
     path::Path,
     io::{self, Read, Write},
+    collections::HashMap,
 };
 use rocket::{
     response::{
@@ -31,6 +32,9 @@ lazy_static! {
     static ref REPORT_MAP_CACHE: RwLock<String> = {
         RwLock::new(String::new())
     };
+    static ref REPORT_CACHE: RwLock<HashMap<i32, String>> = {
+        RwLock::new(HashMap::with_capacity(MAX_REPORT_CACHE_SIZE))
+    };
 }
 
 const REPORT_DURATION: u64 = 48 * 60 * 60; // seconds
@@ -38,6 +42,7 @@ const PASSWORD_HASH_SORT: &'static str = "^^ NeuroWhAI 42 5749";
 const FILE_UPLOAD_LIMIT: usize = (8 * 1024 * 1024 / 3) * 4; // chars
 const IMAGE_UPLOAD_DIR: &'static str = "upload/images/";
 const IMAGE_PUBLIC_DIR: &'static str = "images/";
+const MAX_REPORT_CACHE_SIZE: usize = 512;
 
 
 fn make_json_result(json: String) -> JsonResult {
@@ -175,23 +180,40 @@ fn update_report_map(data: String) {
 
 #[get("/report?<id>")]
 pub fn get_report(id: i32) -> JsonResult {
-    let result = db::get_report(id);
+    {
+        let cache = REPORT_CACHE.read().unwrap();
 
-    if let Ok(r) = result {
-        make_json_result(json!({
-            "id": r.id,
-            "user_id": r.user_id,
-            "latitude": r.latitude,
-            "longitude": r.longitude,
-            "created_time": r.created_time.duration_since(UNIX_EPOCH).unwrap().as_secs(),
-            "lvl": r.lvl,
-            "description": r.description,
-            "img_path": r.img_path,
-        }).to_string())
+        if let Some(data) = cache.get(&id) {
+            return make_json_result(data.clone());
+        }
     }
-    else {
-        make_json_error(result.err().unwrap().to_string())
-    }
+
+    db::get_report(id)
+        .map(|r| {
+            let data = json!({
+                "id": r.id,
+                "user_id": r.user_id,
+                "latitude": r.latitude,
+                "longitude": r.longitude,
+                "created_time": r.created_time.duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                "lvl": r.lvl,
+                "description": r.description,
+                "img_path": r.img_path,
+            }).to_string();
+
+            {
+                let mut cache = REPORT_CACHE.write().unwrap();
+
+                if cache.len() >= MAX_REPORT_CACHE_SIZE {
+                    cache.clear();
+                }
+                
+                cache.insert(id, data.clone());
+            }
+
+            Json(data)
+        })
+        .map_err(|err| BadRequest(Some(err.to_string())))
 }
 
 #[get("/report-map")]
@@ -344,6 +366,12 @@ pub fn delete_report(id: i32, user_id: String, user_pwd: String)
                     if img_path.exists() && img_path.is_file() {
                         let _ = fs::remove_file(img_path);
                     }
+                }
+
+                {
+                    // 캐시에서 삭제.
+                    let mut cache = REPORT_CACHE.write().unwrap();
+                    cache.remove(&id);
                 }
                 
                 // 삭제하고 결과 반환.
