@@ -13,7 +13,7 @@ mod util;
 mod logger;
 mod task_scheduler;
 mod captcha_sys;
-mod report_route;
+mod report_sys;
 mod shelter_route;
 mod cctv_sys;
 mod fire_sys;
@@ -24,7 +24,6 @@ mod fire_forecast_sys;
 
 use std::{env, env::VarError};
 use std::path::{Path, PathBuf};
-use std::fs::create_dir_all;
 use std::time::Duration;
 use rocket::response::NamedFile;
 use rocket::fairing::AdHoc;
@@ -91,6 +90,7 @@ fn main() {
         .n_workers(4)
         .period_resolution(Duration::new(0, 100/*ms*/ * 1_000_000));
 
+    report_sys::init_report_sys(&mut scheduler);
     cctv_sys::init_cctv_sys(&mut scheduler);
     fire_sys::init_fire_sys(&mut scheduler);
     wind_sys::init_wind_sys(&mut scheduler);
@@ -98,11 +98,6 @@ fn main() {
     fire_forecast_sys::init_fire_forecast_sys(&mut scheduler);
 
     let scheduler = scheduler.build();
-
-
-    create_dir_all(Path::new(STATIC_DIR).join(report_route::IMAGE_PUBLIC_DIR))
-        .and(create_dir_all(Path::new(report_route::IMAGE_UPLOAD_DIR)))
-        .expect("Initial directory creation failed.");
 
 
     if *DEBUG {
@@ -123,12 +118,12 @@ fn main() {
         captcha_sys::get_captcha,
     ])
     .mount("/", routes![
-        report_route::get_report,
-        report_route::get_report_map,
-        report_route::post_report,
-        report_route::delete_report,
-        report_route::post_upload_image,
-        report_route::post_bad_report,
+        report_sys::get_report,
+        report_sys::get_report_map,
+        report_sys::post_report,
+        report_sys::delete_report,
+        report_sys::post_upload_image,
+        report_sys::post_bad_report,
     ])
     .mount("/", routes![
         shelter_route::get_shelter_map,

@@ -1,5 +1,5 @@
 use std::{
-    time::{UNIX_EPOCH, Duration, Instant},
+    time::{UNIX_EPOCH, Duration},
     sync::RwLock,
     fs,
     path::Path,
@@ -20,6 +20,7 @@ use chrono::Utc;
 use crate::db;
 use crate::util;
 use crate::captcha_sys::verify_and_remove_captcha;
+use crate::task_scheduler::{Task, TaskSchedulerBuilder};
 
 
 type JsonResult = Result<Json<String>, BadRequest<String>>;
@@ -27,17 +28,16 @@ type StringResult = Result<String, BadRequest<String>>;
 
 
 lazy_static! {
-    static ref REPORT_MAP_CACHE: RwLock<ReportMapCache> = {
-        RwLock::new(ReportMapCache::new())
+    static ref REPORT_MAP_CACHE: RwLock<String> = {
+        RwLock::new(String::new())
     };
 }
 
 const REPORT_DURATION: u64 = 48 * 60 * 60; // seconds
-const CACHE_VALID_DURATION: u64 = 10; // seconds
 const PASSWORD_HASH_SORT: &'static str = "^^ NeuroWhAI 42 5749";
 const FILE_UPLOAD_LIMIT: usize = (8 * 1024 * 1024 / 3) * 4; // chars
-pub const IMAGE_UPLOAD_DIR: &'static str = "upload/images/";
-pub const IMAGE_PUBLIC_DIR: &'static str = "images/";
+const IMAGE_UPLOAD_DIR: &'static str = "upload/images/";
+const IMAGE_PUBLIC_DIR: &'static str = "images/";
 
 
 fn make_json_result(json: String) -> JsonResult {
@@ -54,35 +54,6 @@ fn make_string_result(txt: String) -> StringResult {
 
 fn make_string_error(err: String) -> StringResult {
     Err(BadRequest(Some(err)))
-}
-
-
-struct ReportMapCache {
-    data: Option<String>,
-    created_time: Instant,
-}
-
-impl ReportMapCache {
-    fn new() -> Self {
-        ReportMapCache {
-            data: None,
-            created_time: Instant::now(),
-        }
-    }
-
-    fn is_valid(&self) -> bool {
-        self.data.is_some()
-            && self.created_time.elapsed() <= Duration::new(CACHE_VALID_DURATION, 0)
-    }
-
-    fn update(&mut self, data: String) {
-        self.data = Some(data);
-        self.created_time = Instant::now();
-    }
-
-    fn get_data(&self) -> String {
-        (*self.data.as_ref().unwrap()).clone()
-    }
 }
 
 
@@ -148,6 +119,60 @@ impl BadReportForm {
 }
 
 
+pub fn init_report_sys(scheduler: &mut TaskSchedulerBuilder) {
+    fs::create_dir_all(Path::new(crate::STATIC_DIR).join(IMAGE_PUBLIC_DIR))
+        .and(fs::create_dir_all(Path::new(IMAGE_UPLOAD_DIR)))
+        .expect("Initial directory creation failed");
+
+    update_report_map(make_report_map()
+        .expect("Fail to make report map"));
+
+    scheduler.add_task(Task::new(report_job, Duration::new(30, 0)));
+}
+
+fn report_job() -> Duration {
+    info!("Start job");
+
+    match make_report_map() {
+        Ok(data) => {
+            update_report_map(data);
+            Duration::new(30, 0)
+        },
+        Err(err) => {
+            warn!("Fail to get report map data: {}", err);
+            Duration::new(2, 0)
+        },
+    }
+}
+
+fn make_report_map() -> Result<String, String> {
+    db::get_reports_within(Duration::new(REPORT_DURATION, 0))
+        .map(|reports| {
+            let part_jsons = reports.iter()
+                .map(|r| {
+                    json!({
+                        "id": r.id,
+                        "user_id": r.user_id,
+                        "latitude": r.latitude,
+                        "longitude": r.longitude,
+                        "created_time": r.created_time.duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                        "lvl": r.lvl,
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            json!({
+                "reports": part_jsons,
+                "size": part_jsons.len(),
+            }).to_string()
+        })
+        .map_err(|err| err.to_string())
+}
+
+fn update_report_map(data: String) {
+    *REPORT_MAP_CACHE.write().unwrap() = data;
+}
+
 #[get("/report?<id>")]
 pub fn get_report(id: i32) -> JsonResult {
     let result = db::get_report(id);
@@ -170,48 +195,8 @@ pub fn get_report(id: i32) -> JsonResult {
 }
 
 #[get("/report-map")]
-pub fn get_report_map() -> JsonResult {
-    // 유효한 캐시 데이터가 있다면 반환.
-    {
-        let cache = REPORT_MAP_CACHE.read().unwrap();
-        if cache.is_valid() {
-            return make_json_result(cache.get_data())
-        }
-    }
-
-
-    let result = db::get_reports_within(Duration::new(REPORT_DURATION, 0));
-
-    if let Ok(reports) = result {
-        let part_jsons = reports.iter()
-            .map(|r| {
-                json!({
-                    "id": r.id,
-                    "user_id": r.user_id,
-                    "latitude": r.latitude,
-                    "longitude": r.longitude,
-                    "created_time": r.created_time.duration_since(UNIX_EPOCH).unwrap().as_secs(),
-                    "lvl": r.lvl,
-                })
-            })
-            .collect::<Vec<_>>();
-
-        let reports_json = json!({
-            "reports": part_jsons,
-            "size": part_jsons.len(),
-        }).to_string();
-
-        // 캐시 데이터 갱신.
-        {
-            let mut cache = REPORT_MAP_CACHE.write().unwrap();
-            cache.update(reports_json.clone());
-        }
-
-        make_json_result(reports_json)
-    }
-    else {
-        make_json_error(result.err().unwrap().to_string())
-    }
+pub fn get_report_map() -> Json<String> {
+    Json(REPORT_MAP_CACHE.read().unwrap().clone())
 }
 
 #[post("/upload-image", format="plain", data="<data>")]
