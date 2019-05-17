@@ -54,20 +54,20 @@ const IMAGE_PUBLIC_DIR: &'static str = "images/";
 const MAX_REPORT_CACHE_SIZE: usize = 512;
 
 
-fn make_json_result(json: String) -> JsonResult {
-    Ok(Json(json))
+fn make_json_result<T: Into<String>>(json: T) -> JsonResult {
+    Ok(Json(json.into()))
 }
 
-fn make_json_error(err: String) -> JsonResult {
-    Err(BadRequest(Some(err)))
+fn make_json_error<T: Into<String>>(err: T) -> JsonResult {
+    Err(BadRequest(Some(err.into())))
 }
 
-fn make_string_result(txt: String) -> StringResult {
-    Ok(txt)
+fn make_string_result<T: Into<String>>(txt: T) -> StringResult {
+    Ok(txt.into())
 }
 
-fn make_string_error(err: String) -> StringResult {
-    Err(BadRequest(Some(err)))
+fn make_string_error<T: Into<String>>(err: T) -> StringResult {
+    Err(BadRequest(Some(err.into())))
 }
 
 
@@ -239,7 +239,7 @@ pub fn post_upload_image(data: Data) -> StringResult {
 
     match read_result {
         Ok(bytes) if bytes <= FILE_UPLOAD_LIMIT => (),
-        Ok(_) => return make_string_error("The file is too large".into()),
+        Ok(_) => return make_string_error("The file is too large"),
         Err(err) => return make_string_error(err.to_string()),
     }
 
@@ -248,14 +248,14 @@ pub fn post_upload_image(data: Data) -> StringResult {
         .and_then(|x| x.split('/').nth(1))
         .and_then(|x| x.split(';').nth(0));
     if ext_result.is_none() {
-        return make_string_error("Invalid uri".into());
+        return make_string_error("Invalid uri");
     }
     let ext = ext_result.unwrap();
 
     // Check file extension.
     let allowed_exts = &["jpeg", "jpg", "png", "bmp"];
     if !allowed_exts.iter().any(|&x| x == ext) {
-        return make_string_error("Invalid extension".into());
+        return make_string_error("Invalid extension");
     }
 
     // Decode base64 string to bytes.
@@ -295,7 +295,7 @@ pub fn post_report(form: Option<Form<ReportForm>>, cookies: Cookies)
     -> StringResult {
 
     if form.is_none() {
-        return make_string_error("Invalid form".into());
+        return make_string_error("Invalid form");
     }
 
     let form = form.unwrap();
@@ -306,7 +306,7 @@ pub fn post_report(form: Option<Form<ReportForm>>, cookies: Cookies)
     }
     
     if !verify_and_remove_captcha(cookies, 1, &form.captcha) {
-        return make_string_error("Wrong captcha".into());
+        return make_string_error("Wrong captcha");
     }
 
 
@@ -325,11 +325,11 @@ pub fn post_report(form: Option<Form<ReportForm>>, cookies: Cookies)
 
             match public_file.to_str() {
                 Some(path) => path.into(),
-                None => return make_string_error("Invalid public path".into())
+                None => return make_string_error("Invalid public path")
             }
         }
         else {
-            return make_string_error("No images uploaded".into());
+            return make_string_error("No images uploaded");
         }
     }
     else {
@@ -388,22 +388,22 @@ pub fn delete_report(id: i32, user_id: String, user_pwd: String)
                 let del_result = db::delete_report(id);
                 match del_result {
                     Ok(cnt) if cnt > 0 => make_string_result(cnt.to_string()),
-                    Ok(_) => make_string_error("Not found".into()),
+                    Ok(_) => make_string_error("Not found"),
                     Err(err) => make_string_error(err.to_string()),
                 }
             }
             else {
-                make_string_error("Authentication result is incorrect".into())
+                make_string_error("Authentication result is incorrect")
             }
         }
-        _ => make_string_error("Not found".into())
+        _ => make_string_error("Not found")
     }
 }
 
 #[post("/bad-report", format="application/x-www-form-urlencoded", data="<form>")]
 pub fn post_bad_report(form: Option<Form<BadReportForm>>, cookies: Cookies) -> StringResult {
     if form.is_none() {
-        return make_string_error("Invalid form".into());
+        return make_string_error("Invalid form");
     }
 
     let form = form.unwrap();
@@ -414,7 +414,7 @@ pub fn post_bad_report(form: Option<Form<BadReportForm>>, cookies: Cookies) -> S
     }
 
     if !verify_and_remove_captcha(cookies, 2, &form.captcha) {
-        return make_string_error("Wrong captcha".into());
+        return make_string_error("Wrong captcha");
     }
 
 
@@ -430,7 +430,7 @@ pub fn post_bad_report(form: Option<Form<BadReportForm>>, cookies: Cookies) -> S
         }
     }
     else {
-        make_string_error("Not exists".into())
+        make_string_error("Not exists")
     }
 }
 
@@ -482,11 +482,11 @@ pub fn delete_bad_report(id: i32, admin_id: String, admin_pwd: String)
 
         match result {
             Ok(cnt) if cnt > 0 => make_string_result(cnt.to_string()),
-            Ok(_) => make_string_error("Not found".into()),
+            Ok(_) => make_string_error("Not found"),
             Err(err) => make_string_error(err.to_string()),
         }
     }
     else {
-        make_string_error("Authentication failed!".into())
+        make_string_error("Authentication failed!")
     }
 }
