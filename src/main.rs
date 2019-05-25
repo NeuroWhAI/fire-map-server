@@ -14,7 +14,7 @@ mod logger;
 mod task_scheduler;
 mod captcha_sys;
 mod report_sys;
-mod shelter_route;
+mod shelter_sys;
 mod cctv_sys;
 mod fire_sys;
 mod wind_sys;
@@ -91,6 +91,7 @@ fn main() {
         .period_resolution(Duration::new(0, 100/*ms*/ * 1_000_000));
 
     report_sys::init_report_sys(&mut scheduler);
+    shelter_sys::init_shelter_sys(&mut scheduler);
     cctv_sys::init_cctv_sys(&mut scheduler);
     fire_sys::init_fire_sys(&mut scheduler);
     wind_sys::init_wind_sys(&mut scheduler);
@@ -128,7 +129,9 @@ fn main() {
         report_sys::delete_bad_report,
     ])
     .mount("/", routes![
-        shelter_route::get_shelter_map,
+        shelter_sys::get_shelter_map,
+        shelter_sys::post_shelter,
+        shelter_sys::delete_shelter,
     ])
     .mount("/", routes![
         cctv_sys::get_cctv,
