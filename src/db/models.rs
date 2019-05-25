@@ -60,6 +60,8 @@ pub struct NewShelter {
     pub latitude: f64,
     pub longitude: f64,
     pub info: String,
+    pub recent_good: i32,
+    pub recent_bad: i32,
 }
 
 #[derive(Queryable)]
