@@ -85,23 +85,26 @@ pub struct ReportForm {
 
 impl ReportForm {
     fn verify_error(&self) -> Option<&'static str> {
+        let len_id = self.user_id.chars().count();
+        let len_pwd = self.user_pwd.chars().count();
+
         if self.user_id.find(char::is_whitespace).is_some() {
             Some("The ID can not contain spaces")
         }
-        else if self.user_id.len() < 2 {
+        else if len_id < 2 {
             Some("ID must be at least 2 characters")
         }
-        else if self.user_id.len() > 24 {
+        else if len_id > 24 {
             Some("ID can not be longer than 24 characters")
         }
-        else if self.user_pwd.len() < 4 {
+        else if len_pwd < 4 {
             Some("Password must be at least 4 characters")
         }
         else if self.lvl < 0 || self.lvl >= 5 {
             Some("Invalid level")
         }
         else if self.description.len() > 65536 {
-            Some("The maximum length of the description is 65536")
+            Some("The maximum bytes of the description is 65536")
         }
         else if self.img_key.find("..").is_some()
             || self.img_key.len() > 256 {
@@ -124,7 +127,7 @@ pub struct BadReportForm {
 impl BadReportForm {
     fn verify_error(&self) -> Option<&'static str> {
         if self.reason.len() > 65536 {
-            Some("The maximum length of the reason is 65536")
+            Some("The maximum bytes of the reason is 65536")
         }
         else {
             None
