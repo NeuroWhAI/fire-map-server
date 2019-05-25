@@ -132,6 +132,10 @@ fn main() {
         shelter_sys::get_shelter_map,
         shelter_sys::post_shelter,
         shelter_sys::delete_shelter,
+        shelter_sys::get_user_shelter_list,
+        shelter_sys::post_user_shelter,
+        shelter_sys::post_eval_shelter,
+        shelter_sys::delete_user_shelter,
     ])
     .mount("/", routes![
         cctv_sys::get_cctv,

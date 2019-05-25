@@ -18,7 +18,7 @@ lazy_static! {
     };
 }
 
-const COOKIE_NAMES: [&'static str; 3] = ["captcha_id", "captcha_0", "captcha_1"];
+const COOKIE_NAMES: [&'static str; 5] = ["captcha_id", "captcha_0", "captcha_1", "captcha_2", "captcha_3"];
 const MAX_MAP_SIZE: usize = 512;
 const VALID_CAPTCHA_DURATION: u64 = 60 * 5;
 

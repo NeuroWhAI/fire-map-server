@@ -12,15 +12,16 @@ use rocket::{
     },
     request::Form,
     http::Cookies,
-    data::Data,
 };
 use serde_json::{json, Value as JsonValue};
 
-use crate::util;
 use crate::db;
+use crate::util;
+use crate::captcha_sys::verify_and_remove_captcha;
 use crate::task_scheduler::{Task, TaskSchedulerBuilder};
 
 
+type JsonResult = Result<Json<String>, BadRequest<String>>;
 type StringResult = Result<String, BadRequest<String>>;
 
 
@@ -44,9 +45,11 @@ lazy_static! {
 const PASSWORD_HASH_SORT: &'static str = "^^ NeuroWhAI 42 5749";
 
 
-fn hash_pwd(pwd: &str) -> u64 {
+fn check_admin(id: &str, pwd: &str) -> bool {
     let sorted_pwd = pwd.to_owned() + PASSWORD_HASH_SORT;
-    util::calculate_hash(&sorted_pwd)
+    let hashed_pwd = util::calculate_hash(&sorted_pwd);
+
+    *ADMIN_ID == id && *ADMIN_PWD == hashed_pwd
 }
 
 
@@ -88,11 +91,43 @@ pub struct ShelterForm {
 }
 
 
+#[derive(FromForm)]
+pub struct UserShelterForm {
+    captcha: String,
+    name: String,
+    latitude: f64,
+    longitude: f64,
+    info: String,
+    evidence: String,
+}
+
+impl UserShelterForm {
+    fn verify_error(&self) -> Option<&'static str> {
+        let len_name = self.name.chars().count();
+        let len_info = self.info.chars().count();
+
+        if len_name < 2 {
+            Some("Name must be at least 2 characters")
+        }
+        else if len_name > 10 {
+            Some("Name can not be longer than 10 characters")
+        }
+        else if len_info > 20 {
+            Some("The maximum length of the information is 20")
+        }
+        else {
+            None
+        }
+    }
+}
+
+
 pub fn init_shelter_sys(scheduler: &mut TaskSchedulerBuilder) {
     init_db_and_shelters();
     update_shelter_data(build_shelter_data());
 
-    scheduler.add_task(Task::new(shelter_job, Duration::new(60 * 60, 0)));
+    scheduler.add_task(Task::new(shelter_data_job, Duration::new(60 * 5, 0)));
+    scheduler.add_task(Task::new(shelter_update_job, Duration::new(60 * 60, 0)));
 }
 
 #[get("/shelter-map")]
@@ -102,9 +137,7 @@ pub fn get_shelter_map() -> Json<String> {
 
 #[post("/admin/shelter", format="application/x-www-form-urlencoded", data="<form>")]
 pub fn post_shelter(form: Form<ShelterForm>) -> StringResult {
-    let hashed_pwd = hash_pwd(&form.admin_pwd);
-
-    if *ADMIN_ID == form.admin_id && *ADMIN_PWD == hashed_pwd {
+    if check_admin(&form.admin_id, &form.admin_pwd) {
         let db_result = db::insert_shelter(&db::models::NewShelter {
             name: form.name.clone(),
             latitude: form.latitude,
@@ -132,9 +165,7 @@ pub fn post_shelter(form: Form<ShelterForm>) -> StringResult {
 
 #[delete("/admin/shelter?<id>&<admin_id>&<admin_pwd>")]
 pub fn delete_shelter(id: i32, admin_id: String, admin_pwd: String) -> StringResult {
-    let hashed_pwd = hash_pwd(&admin_pwd);
-
-    if *ADMIN_ID == admin_id && *ADMIN_PWD == hashed_pwd {
+    if check_admin(&admin_id, &admin_pwd) {
         match db::delete_shelter(id) {
             Ok(cnt) => {
                 // Remove from cache map.
@@ -151,11 +182,119 @@ pub fn delete_shelter(id: i32, admin_id: String, admin_pwd: String) -> StringRes
     }
 }
 
+#[get("/admin/user-shelter-list?<admin_id>&<admin_pwd>")]
+pub fn get_user_shelter_list(admin_id: String, admin_pwd: String) -> JsonResult {
+    if !check_admin(&admin_id, &admin_pwd) {
+        return Err(BadRequest(Some("Authentication failed!".into())));
+    }
 
-fn shelter_job() -> Duration {
-    info!("Start job");
+    match db::get_user_shelters() {
+        Ok(shelters) => {
+            let parts = shelters.iter().map(|s| {
+                json!({
+                    "id": s.id,
+                    "name": s.name,
+                    "latitude": s.latitude,
+                    "longitude": s.longitude,
+                    "info": s.info,
+                    "evidence": s.evidence,
+                })
+            })
+            .collect::<Vec<_>>();
+
+            Ok(Json(json!({
+                "shelters": parts,
+                "size": parts.len(),
+            }).to_string()))
+        },
+        Err(err) => Err(BadRequest(Some(err.to_string()))),
+    }
+}
+
+#[post("/user-shelter", format="application/x-www-form-urlencoded", data="<form>")]
+pub fn post_user_shelter(form: Option<Form<UserShelterForm>>, cookies: Cookies) -> StringResult {
+    if form.is_none() {
+        return Err(BadRequest(Some("Invalid form".into())));
+    }
+
+    let form = form.unwrap();
+
+
+    if let Some(err) = form.verify_error() {
+        return Err(BadRequest(Some(err.to_string())));
+    }
+
+    if !verify_and_remove_captcha(cookies, 3, &form.captcha) {
+        return Err(BadRequest(Some("Wrong captcha".into())));
+    }
+
+
+    let db_result = db::insert_user_shelter(&db::models::NewUserShelter {
+        name: form.name.clone(),
+        latitude: form.latitude,
+        longitude: form.longitude,
+        info: form.info.clone(),
+        evidence: form.evidence.clone(),
+    });
+
+    match db_result {
+        Ok(user_shelter) => Ok(user_shelter.id.to_string()),
+        Err(err) => Err(BadRequest(Some(err.to_string()))),
+    }
+}
+
+#[post("/eval-shelter?<captcha>&<id>&<score>")]
+pub fn post_eval_shelter(captcha: String, id: i32, score: i32, cookies: Cookies) -> JsonResult {
+    if !verify_and_remove_captcha(cookies, 4, &captcha) {
+        return Err(BadRequest(Some("Wrong captcha".into())));
+    }
+
+
+    let mut cache_map = SHELTER_MAP.write().unwrap();
+
+    if let Some(shelter) = cache_map.get_mut(&id) {
+        if score > 0 {
+            shelter.recent_good += 1;
+        }
+        else if score < 0 {
+            shelter.recent_bad += 1;
+        }
+
+        Ok(Json(json!({
+            "id": id,
+            "good": shelter.recent_good,
+            "bad": shelter.recent_bad,
+        }).to_string()))
+    }
+    else {
+        Err(BadRequest(Some("Can't find a shelter".into())))
+    }
+}
+
+#[delete("/admin/user-shelter?<id>&<admin_id>&<admin_pwd>")]
+pub fn delete_user_shelter(id: i32, admin_id: String, admin_pwd: String) -> StringResult {
+    if check_admin(&admin_id, &admin_pwd) {
+        match db::delete_user_shelter(id) {
+            Ok(cnt) => Ok(cnt.to_string()),
+            Err(err) => Err(BadRequest(Some(err.to_string()))),
+        }
+    }
+    else {
+        Err(BadRequest(Some("Authentication failed!".into())))
+    }
+}
+
+
+fn shelter_data_job() -> Duration {
+    info!("Start data job");
 
     update_shelter_data(build_shelter_data());
+
+    Duration::new(60 * 5, 0)
+}
+
+fn shelter_update_job() -> Duration {
+    info!("Start update job");
 
     {
         let mut cache_map = SHELTER_MAP.write().unwrap();
