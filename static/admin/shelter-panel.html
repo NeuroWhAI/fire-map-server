@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Shelter Panel</title>
+    <script>
+        var shelters = [];
+
+        function onBtnLoginClicked() {
+            let adminId = document.getElementById("txtAdminId").value;
+            let adminPwd = document.getElementById("txtAdminPwd").value;
+
+            var req = new XMLHttpRequest();
+            req.onload = function() {
+                if (req.status == 200 && req.response) {
+                    let json = req.response;
+
+                    shelters = json.shelters;
+
+                    let list = document.getElementById("listReports");
+                    list.innerHTML = ""; // Clear table.
+
+                    for (let i = 0; i < json.size; ++i) {
+                        let shelter = shelters[i];
+
+                        let row = list.insertRow(0);
+                        row.insertCell(0).innerText = shelter.id;
+                        row.insertCell(1).innerText = shelter.name;
+                        row.insertCell(2).innerHTML = `<a href="http://www.google.com/maps/place/${shelter.latitude},${shelter.longitude}" target="_blank">Link</a>`;
+                        row.insertCell(3).innerText = shelter.info;
+                        row.insertCell(4).innerText = shelter.evidence;
+                        row.insertCell(5).innerHTML = `
+                            <button onclick="onBtnAcceptClicked(${i});">Accept</button>
+                            <button onclick="onBtnDismissClicked(${i});">Dismiss</button>
+                        `;
+                    }
+
+                    if (json.size == 0) {
+                        alert("No shelters!");
+                    }
+                }
+                else if (req.response.error) {
+                    alert(req.response.error);
+                }
+                else {
+                    alert("Error: : "+ req.response);
+                }
+            }
+            req.responseType = 'json';
+            req.open("GET", `user-shelter-list?admin_id=${adminId}&admin_pwd=${adminPwd}`);
+            req.send();
+        }
+
+        function onBtnAcceptClicked(index) {
+            let s = shelters[index];
+
+            let adminId = document.getElementById("txtAdminId").value;
+            let adminPwd = document.getElementById("txtAdminPwd").value;
+
+            var req = new XMLHttpRequest();
+            req.onload = function() {
+                if (this.status == 200) {
+                    console.log(this.responseText);
+                    alert(this.responseText + " Accepted!");
+
+                    // Remove the user shelter.
+                    onBtnDismissClicked(index);
+                }
+                else {
+                    alert(this.responseText);
+                }
+            }
+            req.open("POST", `shelter`);
+            req.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+            req.send(`admin_id=${adminId}&admin_pwd=${adminPwd}&name=${s.name}&latitude=${s.latitude}&longitude=${s.longitude}&info=${s.info}`);
+        }
+
+        function onBtnDismissClicked(index) {
+            let shelter = shelters[index];
+
+            let adminId = document.getElementById("txtAdminId").value;
+            let adminPwd = document.getElementById("txtAdminPwd").value;
+
+            var req = new XMLHttpRequest();
+            req.onload = function() {
+                if (this.status == 200) {
+                    alert("Deleted!");
+                }
+                else {
+                    alert(this.responseText);
+                }
+            }
+            req.open("DELETE", `user-shelter?id=${shelter.id}&admin_id=${adminId}&admin_pwd=${adminPwd}`);
+            req.send();
+        }
+
+        function onBtnDeleteShelterClicked() {
+            let shelterId = document.getElementById("txtShelterId").value;
+            let adminId = document.getElementById("txtAdminId").value;
+            let adminPwd = document.getElementById("txtAdminPwd").value;
+
+            var req = new XMLHttpRequest();
+            req.onload = function() {
+                if (this.status == 200) {
+                    alert("Deleted!");
+                }
+                else {
+                    alert(this.responseText);
+                }
+            }
+            req.open("DELETE", `shelter?id=${shelterId}&admin_id=${adminId}&admin_pwd=${adminPwd}`);
+            req.send();
+        }
+    </script>
+</head>
+<body>
+    <h1>Shelter Panel</h1>
+    
+    <div>
+        <b>Admin</b><br>
+        Id : <input type="text" id="txtAdminId"/><br>
+        Pwd : <input type="password" id="txtAdminPwd"/><br>
+        <button onclick="onBtnLoginClicked();">Login</button>
+    </div>
+
+    <br>
+
+    <h3>Delete Shelter</h3>
+    <div>
+        Shelter ID : <input type="text" id="txtShelterId"/>
+        <button onclick="onBtnDeleteShelterClicked();">Delete</button>
+    </div>
+
+    <br>
+
+    <h3>Manage User Shelters</h3>
+    <table>
+        <caption>User Shelter List</caption>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Location</th>
+                <th>Info</th>
+                <th>Evidence</th>
+                <th>Control</th>
+            </tr>
+        </thead>
+        <tbody id="listReports"></tbody>
+    </table>
+</body>
+</html>
