@@ -100,7 +100,7 @@ impl ReportForm {
         else if self.lvl < 0 || self.lvl >= 5 {
             Some("Invalid level")
         }
-        else if self.description.len() >= 65536 {
+        else if self.description.len() > 65536 {
             Some("The maximum length of the description is 65536")
         }
         else if self.img_key.find("..").is_some()
@@ -123,7 +123,7 @@ pub struct BadReportForm {
 
 impl BadReportForm {
     fn verify_error(&self) -> Option<&'static str> {
-        if self.reason.len() >= 65536 {
+        if self.reason.len() > 65536 {
             Some("The maximum length of the reason is 65536")
         }
         else {
