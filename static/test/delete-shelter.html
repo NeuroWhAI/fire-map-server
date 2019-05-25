@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test</title>
+</head>
+<body>
+    <script>
+        function onClick() {
+            var req = new XMLHttpRequest();
+            req.addEventListener("load", function() {
+                document.writeln(this.responseText);
+            });
+            req.open("DELETE", `http://localhost:8288/admin/shelter?id=${id.value}&admin_id=${admin_id.value}&admin_pwd=${admin_pwd.value}`);
+            req.send();
+        }
+    </script>
+    Shelter ID : <input type="text" id="id"/><br>
+    Admin ID : <input type="text" id="admin_id"/><br>
+    Admin Pwd : <input type="password" id="admin_pwd"/><br>
+    <button onclick="onClick();">Execute</button>
+</body>
+</html>

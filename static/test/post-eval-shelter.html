@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test</title>
+</head>
+<body>
+    <script>
+        function onClick() {
+            var req = new XMLHttpRequest();
+            req.addEventListener("load", function() {
+                document.writeln(this.responseText);
+            });
+            req.open("POST", `http://localhost:8288/eval-shelter?captcha=${captcha.value}&id=${id.value}&score=${score.value}`);
+            req.send();
+        }
+    </script>
+    <img src="http://localhost:8288/captcha?channel=4"><br>
+    Captcha : <input type="text" id="captcha"/><br>
+    Shelter ID : <input type="text" id="id"/><br>
+    Score : <input type="text" id="score"/><br>
+    <button onclick="onClick();">Execute</button>
+</body>
+</html>

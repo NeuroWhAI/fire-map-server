@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test</title>
+</head>
+<body>
+    <img src="http://localhost:8288/captcha?channel=3">
+    <form action="http://localhost:8288/user-shelter" method="POST" enctype="application/x-www-form-urlencoded">
+        Captcha : <input type="text" name="captcha"/><br>
+        Name : <input type="text" name="name"/><br>
+        Latitude : <input type="text" name="latitude"/><br>
+        Longitude : <input type="text" name="longitude"/><br>
+        Info : <input type="text" name="info"/><br>
+        Evidence : <input type="text" name="evidence"/><br>
+        <button type="submit">Execute</button>
+    </form>
+</body>
+</html>
