@@ -19,3 +19,26 @@ table! {
         reason -> Text,
     }
 }
+
+table! {
+    shelters (id) {
+        id -> Integer,
+        name -> Text,
+        latitude -> Double,
+        longitude -> Double,
+        info -> Text,
+        recent_good -> Integer,
+        recent_bad -> Integer,
+    }
+}
+
+table! {
+    user_shelters (id) {
+        id -> Integer,
+        name -> Text,
+        latitude -> Double,
+        longitude -> Double,
+        info -> Text,
+        evidence -> Text,
+    }
+}

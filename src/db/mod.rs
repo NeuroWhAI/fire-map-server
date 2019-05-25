@@ -14,6 +14,8 @@ use chrono::Utc;
 use models::*;
 use schema::reports::dsl as r_dsl;
 use schema::bad_reports::dsl as bad_dsl;
+use schema::shelters::dsl as shelter_dsl;
+use schema::user_shelters::dsl as us_dsl;
 
 
 thread_local! {
@@ -81,6 +83,61 @@ pub fn insert_bad_report(report: &NewBadReport) -> QueryResult<BadReport> {
 pub fn delete_bad_report(id: i32) -> QueryResult<usize> {
     DB_CONN.with(|conn| {
         diesel::delete(bad_dsl::bad_reports.find(id))
+            .execute(conn)
+    })
+}
+
+pub fn get_shelters() -> QueryResult<Vec<Shelter>> {
+    DB_CONN.with(|conn| {
+        shelter_dsl::shelters
+            .load::<Shelter>(conn)
+    })
+}
+
+pub fn insert_shelter(shelter: &NewShelter) -> QueryResult<Shelter> {
+    DB_CONN.with(|conn| {
+        diesel::insert_into(schema::shelters::table)
+            .values(shelter)
+            .get_result::<Shelter>(conn)
+    })
+}
+
+pub fn update_shelter_score(id: i32, good: i32, bad: i32) -> QueryResult<Shelter> {
+    DB_CONN.with(|conn| {
+        diesel::update(shelter_dsl::shelters.find(id))
+            .set((
+                schema::shelters::recent_good.eq(good),
+                schema::shelters::recent_bad.eq(bad)
+            ))
+            .get_result(conn)
+    })
+}
+
+pub fn delete_shelter(id: i32) -> QueryResult<usize> {
+    DB_CONN.with(|conn| {
+        diesel::delete(shelter_dsl::shelters.find(id))
+            .execute(conn)
+    })
+}
+
+pub fn get_user_shelters() -> QueryResult<Vec<UserShelter>> {
+    DB_CONN.with(|conn| {
+        us_dsl::user_shelters
+            .load::<UserShelter>(conn)
+    })
+}
+
+pub fn insert_user_shelter(shelter: &NewUserShelter) -> QueryResult<UserShelter> {
+    DB_CONN.with(|conn| {
+        diesel::insert_into(schema::user_shelters::table)
+            .values(shelter)
+            .get_result::<UserShelter>(conn)
+    })
+}
+
+pub fn delete_user_shelter(id: i32) -> QueryResult<usize> {
+    DB_CONN.with(|conn| {
+        diesel::delete(us_dsl::user_shelters.find(id))
             .execute(conn)
     })
 }

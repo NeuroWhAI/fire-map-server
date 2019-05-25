@@ -41,3 +41,43 @@ pub struct NewBadReport {
     pub report_id: i32,
     pub reason: String,
 }
+
+#[derive(Queryable)]
+pub struct Shelter {
+    pub id: i32,
+    pub name: String,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub info: String,
+    pub recent_good: i32,
+    pub recent_bad: i32,
+}
+
+#[derive(Insertable)]
+#[table_name="shelters"]
+pub struct NewShelter {
+    pub name: String,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub info: String,
+}
+
+#[derive(Queryable)]
+pub struct UserShelter {
+    pub id: i32,
+    pub name: String,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub info: String,
+    pub evidence: String,
+}
+
+#[derive(Insertable)]
+#[table_name="user_shelters"]
+pub struct NewUserShelter {
+    pub name: String,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub info: String,
+    pub evidence: String,
+}

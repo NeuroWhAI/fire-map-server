@@ -14,3 +14,20 @@ create table bad_reports (
 	report_id integer not null,
 	reason text
 );
+create table shelters (
+	id serial not null primary key,
+	name text,
+	latitude double precision not null,
+    longitude double precision not null,
+    info text,
+    recent_good integer not null,
+    recent_bad integer not null
+);
+create table user_shelters (
+	id serial not null primary key,
+	name text,
+	latitude double precision not null,
+    longitude double precision not null,
+    info text,
+    evidence text
+);
