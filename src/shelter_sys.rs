@@ -54,6 +54,7 @@ fn check_admin(id: &str, pwd: &str) -> bool {
 
 
 struct Shelter {
+    id: i32,
     name: String,
     latitude: f64,
     longitude: f64,
@@ -61,12 +62,15 @@ struct Shelter {
     recent_good: i32,
     recent_bad: i32,
 
-    changed: bool,
+    cached: bool,
+    json_cache: String,
+    synced: bool,
 }
 
 impl Shelter {
-    fn new(name: String, latitude: f64, longitude: f64, info: String) -> Self {
-        Shelter {
+    fn new(id: i32, name: String, latitude: f64, longitude: f64, info: String) -> Self {
+        let mut s = Shelter {
+            id,
             name,
             latitude,
             longitude,
@@ -74,8 +78,33 @@ impl Shelter {
             recent_good: 0,
             recent_bad: 0,
 
-            changed: false,
-        }
+            cached: false,
+            json_cache: String::new(),
+            synced: true,
+        };
+
+        s.update_cache();
+
+        s
+    }
+
+    fn update_cache(&mut self) {
+        self.json_cache = json!({
+            "id": self.id,
+            "name": self.name,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "info": self.info,
+            "good": self.recent_good,
+            "bad": self.recent_bad,
+        }).to_string();
+
+        self.cached = true;
+    }
+
+    fn reserve_update(&mut self) {
+        self.cached = false;
+        self.synced = false;
     }
 }
 
@@ -130,6 +159,16 @@ pub fn init_shelter_sys(scheduler: &mut TaskSchedulerBuilder) {
     scheduler.add_task(Task::new(shelter_update_job, Duration::new(60 * 60, 0)));
 }
 
+#[get("/shelter?<id>")]
+pub fn get_shelter(id: i32) -> JsonResult {
+    let cache_map = SHELTER_MAP.read().unwrap();
+
+    match cache_map.get(&id) {
+        Some(shelter) => Ok(Json(shelter.json_cache.clone())),
+        None => Err(BadRequest(Some("Not found".into()))),
+    }
+}
+
 #[get("/shelter-map")]
 pub fn get_shelter_map() -> Json<String> {
     Json(SHELTER_DATA.read().unwrap().clone())
@@ -151,7 +190,7 @@ pub fn post_shelter(form: Form<ShelterForm>) -> StringResult {
             Ok(s) => {
                 // Add to cache map.
                 let mut cache_map = SHELTER_MAP.write().unwrap();
-                cache_map.insert(s.id, Shelter::new(s.name, s.latitude, s.longitude, s.info));
+                cache_map.insert(s.id, Shelter::new(s.id, s.name, s.latitude, s.longitude, s.info));
 
                 Ok(s.id.to_string())
             },
@@ -252,12 +291,14 @@ pub fn post_eval_shelter(captcha: String, id: i32, score: i32, cookies: Cookies)
 
     let mut cache_map = SHELTER_MAP.write().unwrap();
 
-    if let Some(shelter) = cache_map.get_mut(&id) {
+    if let Some(mut shelter) = cache_map.get_mut(&id) {
         if score > 0 {
             shelter.recent_good += 1;
+            shelter.reserve_update();
         }
         else if score < 0 {
             shelter.recent_bad += 1;
+            shelter.reserve_update();
         }
 
         Ok(Json(json!({
@@ -288,6 +329,16 @@ pub fn delete_user_shelter(id: i32, admin_id: String, admin_pwd: String) -> Stri
 fn shelter_data_job() -> Duration {
     info!("Start data job");
 
+    {
+        let mut cache_map = SHELTER_MAP.write().unwrap();
+
+        for shelter in cache_map.values_mut() {
+            if !shelter.cached {
+                shelter.update_cache();
+            }
+        }
+    }
+
     update_shelter_data(build_shelter_data());
 
     Duration::new(60 * 5, 0)
@@ -297,25 +348,10 @@ fn shelter_update_job() -> Duration {
     info!("Start update job");
 
     {
-        let mut cache_map = SHELTER_MAP.write().unwrap();
-
-        for mut shelter in cache_map.values_mut() {
-            if shelter.recent_good > 0 || shelter.recent_bad > 0 {
-                shelter.recent_good /= 2;
-                shelter.recent_bad /= 2;
-                shelter.changed = true;
-            }
-            else {
-                shelter.changed = false;
-            }
-        }
-    }
-
-    {
         let cache_map = SHELTER_MAP.read().unwrap();
 
         for (&id, shelter) in cache_map.iter() {
-            if shelter.changed {
+            if !shelter.synced {
                 // Update DB.
                 // Retry when failed.
                 for _ in 0..3 {
@@ -324,6 +360,24 @@ fn shelter_update_job() -> Duration {
                         Err(err) => warn!("Fail to update a shelter({}) in DB: {}", id, err),
                     }
                 }
+            }
+        }
+    }
+
+    {
+        let mut cache_map = SHELTER_MAP.write().unwrap();
+
+        for mut shelter in cache_map.values_mut() {
+            shelter.synced = true;
+
+            if shelter.recent_good > 0 {
+                shelter.recent_good -= 1;
+                shelter.reserve_update();
+            }
+
+            if shelter.recent_bad > 0 {
+                shelter.recent_bad -= 1;
+                shelter.reserve_update();
             }
         }
     }
@@ -342,21 +396,19 @@ fn init_db_and_shelters() {
 
             for val in data {
                 // Parse shelter data.
-                let shelter = Shelter::new(
-                    val.get("name").and_then(|v| v.as_str()).unwrap().to_owned(),
-                    val.get("latitude").and_then(|v| v.as_f64()).unwrap(),
-                    val.get("longitude").and_then(|v| v.as_f64()).unwrap(),
-                    format!("수용: {}명, 면적: {}㎡",
-                        val.get("capacity").and_then(|v| v.as_i64()).unwrap(),
-                        val.get("area").and_then(|v| v.as_f64()).unwrap())
-                );
+                let sh_name = val.get("name").and_then(|v| v.as_str()).unwrap().to_owned();
+                let sh_latitude = val.get("latitude").and_then(|v| v.as_f64()).unwrap();
+                let sh_longitude = val.get("latitude").and_then(|v| v.as_f64()).unwrap();
+                let sh_info = format!("수용: {}명, 면적: {}㎡",
+                    val.get("capacity").and_then(|v| v.as_i64()).unwrap(),
+                    val.get("area").and_then(|v| v.as_f64()).unwrap());
 
                 // Init DB.
                 let db_result = db::insert_shelter(&db::models::NewShelter {
-                    name: shelter.name.clone(),
-                    latitude: shelter.latitude,
-                    longitude: shelter.longitude,
-                    info: shelter.info.clone(),
+                    name: sh_name.clone(),
+                    latitude: sh_latitude,
+                    longitude: sh_longitude,
+                    info: sh_info.clone(),
                     recent_good: 0,
                     recent_bad: 0,
                 });
@@ -365,7 +417,8 @@ fn init_db_and_shelters() {
                     Ok(db_shelter) => {
                         // Init shelters.
                         let mut cache_map = SHELTER_MAP.write().unwrap();
-                        cache_map.insert(db_shelter.id, shelter);
+                        cache_map.insert(db_shelter.id, Shelter::new(db_shelter.id,
+                            sh_name,sh_latitude, sh_longitude, sh_info));
                     },
                     Err(err) => panic!(err.to_string()),
                 }
@@ -376,7 +429,7 @@ fn init_db_and_shelters() {
             let mut cache_map = SHELTER_MAP.write().unwrap();
 
             for s in shelters {
-                cache_map.insert(s.id, Shelter::new(s.name, s.latitude, s.longitude, s.info));
+                cache_map.insert(s.id, Shelter::new(s.id, s.name, s.latitude, s.longitude, s.info));
             }
         },
         Err(err) => panic!(err.to_string()),
@@ -391,13 +444,11 @@ fn build_shelter_data() -> String {
     let shelters = {
         let cache_map = SHELTER_MAP.read().unwrap();
 
-        cache_map.iter().map(|(id, s)| {
+        cache_map.values().map(|s| {
             json!({
-                "id": id,
-                "name": s.name,
+                "id": s.id,
                 "latitude": s.latitude,
                 "longitude": s.longitude,
-                "info": s.info,
                 "good": s.recent_good,
                 "bad": s.recent_bad,
             })
