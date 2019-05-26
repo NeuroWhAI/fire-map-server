@@ -398,7 +398,7 @@ fn init_db_and_shelters() {
                 // Parse shelter data.
                 let sh_name = val.get("name").and_then(|v| v.as_str()).unwrap().to_owned();
                 let sh_latitude = val.get("latitude").and_then(|v| v.as_f64()).unwrap();
-                let sh_longitude = val.get("latitude").and_then(|v| v.as_f64()).unwrap();
+                let sh_longitude = val.get("longitude").and_then(|v| v.as_f64()).unwrap();
                 let sh_info = format!("수용: {}명, 면적: {}㎡",
                     val.get("capacity").and_then(|v| v.as_i64()).unwrap(),
                     val.get("area").and_then(|v| v.as_f64()).unwrap());
