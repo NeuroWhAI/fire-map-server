@@ -418,7 +418,7 @@ fn init_db_and_shelters() {
                         // Init shelters.
                         let mut cache_map = SHELTER_MAP.write().unwrap();
                         cache_map.insert(db_shelter.id, Shelter::new(db_shelter.id,
-                            sh_name,sh_latitude, sh_longitude, sh_info));
+                            sh_name, sh_latitude, sh_longitude, sh_info));
                     },
                     Err(err) => panic!(err.to_string()),
                 }
