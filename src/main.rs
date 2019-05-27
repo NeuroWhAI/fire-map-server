@@ -87,7 +87,7 @@ fn main() {
 
 
     let mut scheduler = TaskSchedulerBuilder::new()
-        .n_workers(4)
+        .n_workers(6)
         .period_resolution(Duration::new(0, 100/*ms*/ * 1_000_000));
 
     report_sys::init_report_sys(&mut scheduler);

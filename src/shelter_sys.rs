@@ -102,6 +102,16 @@ impl Shelter {
         self.cached = true;
     }
 
+    fn update_db(&mut self) -> Result<(), String> {
+        match db::update_shelter_score(self.id, self.recent_good, self.recent_bad) {
+            Ok(_) => {
+                self.synced = true;
+                Ok(())
+            },
+            Err(err) => Err(err.to_string()),
+        }
+    }
+
     fn reserve_update(&mut self) {
         self.cached = false;
         self.synced = false;
@@ -155,7 +165,8 @@ pub fn init_shelter_sys(scheduler: &mut TaskSchedulerBuilder) {
     init_db_and_shelters();
     update_shelter_data(build_shelter_data());
 
-    scheduler.add_task(Task::new(shelter_data_job, Duration::new(60 * 5, 0)));
+    scheduler.add_task(Task::new(shelter_cache_job, Duration::new(60 * 5, 0)));
+    scheduler.add_task(Task::new(shelter_sync_job, Duration::new(60 * 10, 0)));
     scheduler.add_task(Task::new(shelter_update_job, Duration::new(60 * 60, 0)));
 }
 
@@ -326,8 +337,8 @@ pub fn delete_user_shelter(id: i32, admin_id: String, admin_pwd: String) -> Stri
 }
 
 
-fn shelter_data_job() -> Duration {
-    info!("Start data job");
+fn shelter_cache_job() -> Duration {
+    info!("Start cache job");
 
     {
         let mut cache_map = SHELTER_MAP.write().unwrap();
@@ -344,32 +355,36 @@ fn shelter_data_job() -> Duration {
     Duration::new(60 * 5, 0)
 }
 
-fn shelter_update_job() -> Duration {
-    info!("Start update job");
+fn shelter_sync_job() -> Duration {
+    info!("Start sync job");
 
     {
-        let cache_map = SHELTER_MAP.read().unwrap();
+        let mut cache_map = SHELTER_MAP.write().unwrap();
 
-        for (&id, shelter) in cache_map.iter() {
+        for shelter in cache_map.values_mut() {
             if !shelter.synced {
                 // Update DB.
                 // Retry when failed.
                 for _ in 0..3 {
-                    match db::update_shelter_score(id, shelter.recent_good, shelter.recent_bad) {
+                    match shelter.update_db() {
                         Ok(_) => break,
-                        Err(err) => warn!("Fail to update a shelter({}) in DB: {}", id, err),
+                        Err(err) => warn!("Fail to update a shelter({}) in DB: {}", shelter.id, err),
                     }
                 }
             }
         }
     }
 
+    Duration::new(60 * 10, 0)
+}
+
+fn shelter_update_job() -> Duration {
+    info!("Start update job");
+
     {
         let mut cache_map = SHELTER_MAP.write().unwrap();
 
-        for mut shelter in cache_map.values_mut() {
-            shelter.synced = true;
-
+        for shelter in cache_map.values_mut() {
             if shelter.recent_good > 0 {
                 shelter.recent_good -= 1;
                 shelter.reserve_update();
