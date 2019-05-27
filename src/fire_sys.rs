@@ -3,11 +3,7 @@ use std::{
     time::Duration,
 };
 use rocket::{
-    http::ContentType,
-    response::{
-        Content,
-        content::Json,
-    },
+    response::content::Json,
 };
 use serde_json::{Value as JsonValue, json};
 
@@ -15,12 +11,6 @@ use crate::task_scheduler::{Task, TaskSchedulerBuilder};
 
 
 lazy_static! {
-    static ref WARNING_IMG_URI: RwLock<String> = {
-        RwLock::new(String::new())
-    };
-    static ref WARNING_IMG: RwLock<Vec<u8>> = {
-        RwLock::new(Vec::new())
-    };
     static ref FIRE_EVENT_MAP: RwLock<String> = {
         RwLock::new(String::new())
     };
@@ -35,67 +25,15 @@ enum FireStatus {
 
 
 pub fn init_fire_sys(scheduler: &mut TaskSchedulerBuilder) {
-    let img_uri = get_fire_warning_image_uri()
-        .expect("Fail to get uri of fire warning image");
-    update_fire_image_uri(img_uri.clone());
-    update_fire_image(get_fire_warning_image(&img_uri)
-        .expect("Fail to get fire warning image"));
-
     update_fire_event_map(get_fire_event_json()
         .expect("Fail to get fire events"));
 
-    scheduler.add_task(Task::new(fire_warning_image_job, Duration::new(60 * 5, 0)));
     scheduler.add_task(Task::new(fire_event_job, Duration::new(60 * 3, 0)));
-}
-
-#[get("/fire-warning")]
-pub fn get_fire_warning() -> Content<Vec<u8>> {
-    Content(ContentType::PNG, WARNING_IMG.read().unwrap().clone())
 }
 
 #[get("/fire-event-map")]
 pub fn get_fire_event_map() -> Json<String> {
     Json(FIRE_EVENT_MAP.read().unwrap().clone())
-}
-
-fn fire_warning_image_job() -> Duration {
-    info!("Start job for warning image");
-
-    let mut failed = true;
-
-    let uri_result = get_fire_warning_image_uri();
-
-    if let Ok(uri) = uri_result {
-        let missed = {
-            &*WARNING_IMG_URI.read().unwrap() != &uri 
-        };
-
-        if missed {
-            match get_fire_warning_image(&uri) {
-                Ok(bytes) => {
-                    update_fire_image(bytes);
-                    update_fire_image_uri(uri);
-                    failed = false;
-                },
-                Err(err) => {
-                    warn!("Fail to get warning image: {}", err);
-                },
-            }
-        }
-        else {
-            failed = false;
-        }
-    }
-    else {
-        warn!("Fail to get URI of warning image");
-    }
-
-    if failed {
-        Duration::new(60 * 1, 0)
-    }
-    else {
-        Duration::new(60 * 5, 0)
-    }
 }
 
 fn fire_event_job() -> Duration {
@@ -110,58 +48,6 @@ fn fire_event_job() -> Duration {
             warn!("Fail to get fire event: {}", err);
             Duration::new(60 * 1, 0)
         },
-    }
-}
-
-fn update_fire_image(img_bytes: Vec<u8>) {
-    let mut cache = WARNING_IMG.write().unwrap();
-    *cache = img_bytes;
-}
-
-fn update_fire_image_uri(uri: String) {
-    let mut cache = WARNING_IMG_URI.write().unwrap();
-    *cache = uri;
-}
-
-fn get_fire_warning_image(uri: &str) -> Result<Vec<u8>, String> {
-    let mut bytes = Vec::new();
-    let result = reqwest::get(&format!("http://www.forest.go.kr{}", uri))
-        .map_err(|err| err.to_string())
-        .and_then(|mut res| res.copy_to(&mut bytes).map_err(|err| err.to_string()));
-
-    match result {
-        Ok(_) => Ok(bytes),
-        Err(err) => Err(err),
-    }
-}
-
-fn get_fire_warning_image_uri() -> Result<String, String> {
-    let html_result = reqwest::get("http://www.forest.go.kr/kfsweb/kfs/idx/Index.do")
-        .and_then(|mut res| res.text());
-
-    match html_result {
-        Ok(html) => {
-            let uri_opt = html.find("산불경보")
-                .and_then(|index| {
-                    html[index..].find("intro_img04.png")
-                        .or(html[index..].find("intro_img05.png"))
-                        .or(html[index..].find("intro_img06.png"))
-                        .or(html[index..].find("intro_img07.png"))
-                        .and_then(|offset| Some(index + offset))
-                })
-                .and_then(|index| html[..index].rfind('"'))
-                .and_then(|index| {
-                    html[(index + 1)..].find('"')
-                        .and_then(|offset| Some(index + 1 + offset))
-                        .and_then(|end_index| Some(&html[(index + 1)..end_index]))
-                });
-
-            match uri_opt {
-                Some(uri) => Ok(uri.to_owned()),
-                None => Err("Fail to parse fire warning image".into()),
-            }
-        },
-        Err(err) => Err(err.to_string()),
     }
 }
 
