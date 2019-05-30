@@ -207,6 +207,8 @@ fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
     get_stations()
         .and_then(|stations| {
             if stations.is_empty() {
+                warn!("No wind stations");
+
                 let img_id = CLOCK.elapsed().as_secs();
 
                 let metadata = json!({
