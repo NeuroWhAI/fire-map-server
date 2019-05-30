@@ -115,8 +115,7 @@ fn get_fire_event_json() -> Result<String, String> {
                             });
 
                             let fire_events = results
-                                .filter(|res| res.is_ok())
-                                .map(|res| res.unwrap())
+                                .filter_map(|res| res.ok())
                                 .collect::<Vec<_>>();
 
                             json!({
