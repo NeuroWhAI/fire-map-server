@@ -206,6 +206,23 @@ fn update_wind_map(id: u64, metadata: String, wind_img: Vec<u8>) {
 fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
     get_stations()
         .and_then(|stations| {
+            if stations.is_empty() {
+                let img_id = CLOCK.elapsed().as_secs();
+
+                let metadata = json!({
+                    "error": true,
+                    "id": img_id,
+                    "width": GRID_WIDTH,
+                    "height": GRID_HEIGHT,
+                    "resolution": GRID_RESOLUTION,
+                    "offset_x": GRID_X_OFFSET,
+                    "offset_y": GRID_Y_OFFSET,
+                }).to_string();
+
+                return Ok((img_id, metadata, Vec::new()))
+            }
+
+
             let mut delaunay_x: Delaunay = DelaunayTriangulation::with_walk_locate();
             let mut delaunay_y: Delaunay = DelaunayTriangulation::with_walk_locate();
 
@@ -285,6 +302,7 @@ fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
             let img_id = CLOCK.elapsed().as_secs();
 
             let metadata = json!({
+                "error": false,
                 "id": img_id,
                 "width": GRID_WIDTH,
                 "height": GRID_HEIGHT,
