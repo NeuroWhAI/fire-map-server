@@ -250,17 +250,20 @@ fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
                 for x in 0..GRID_WIDTH {
                     let point = Point2::new(x as f64, y as f64);
 
-                    let wind_x = delaunay_x.nn_interpolation_c1_sibson(&point, 1.0, |v| v.weight, |_, v| v.gradient)
-                        .unwrap();
-                    let wind_y = delaunay_y.nn_interpolation_c1_sibson(&point, 1.0, |v| v.weight, |_, v| v.gradient)
-                        .unwrap();
+                    let wind_x_opt = delaunay_x.nn_interpolation_c1_sibson(&point, 1.0, |v| v.weight, |_, v| v.gradient);
+                    let wind_y_opt = delaunay_y.nn_interpolation_c1_sibson(&point, 1.0, |v| v.weight, |_, v| v.gradient);
 
-                    let wind_x = 255.0 * (wind_x - min_x) / x_term;
-                    let wind_y = 255.0 * (wind_y - min_y) / y_term;
+                    let (wind_x, wind_y) = match (wind_x_opt, wind_y_opt) {
+                        (Some(wind_x), Some(wind_y)) => (wind_x, wind_y),
+                        _ => (min_x.max(0.0), min_y.max(0.0)),
+                    };
+
+                    let norm_wind_x = 255.0 * (wind_x - min_x) / x_term;
+                    let norm_wind_y = 255.0 * (wind_y - min_y) / y_term;
 
                     // RGBA
-                    pixels[index + 0] = 0_f64.max(wind_x.floor().min(255.0)) as u8;
-                    pixels[index + 1] = 0_f64.max(wind_y.floor().min(255.0)) as u8;
+                    pixels[index + 0] = 0_f64.max(norm_wind_x.floor().min(255.0)) as u8;
+                    pixels[index + 1] = 0_f64.max(norm_wind_y.floor().min(255.0)) as u8;
                     pixels[index + 3] = 255;
 
                     index += 4;
