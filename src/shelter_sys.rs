@@ -43,6 +43,7 @@ lazy_static! {
 }
 
 const PASSWORD_HASH_SORT: &'static str = "^^ NeuroWhAI 42 5749";
+const SHELTER_EVAL_SCALE: i32 = 6;
 
 
 fn check_admin(id: &str, pwd: &str) -> bool {
@@ -304,11 +305,11 @@ pub fn post_eval_shelter(captcha: String, id: i32, score: i32, cookies: Cookies)
 
     if let Some(mut shelter) = cache_map.get_mut(&id) {
         if score > 0 {
-            shelter.recent_good += 1;
+            shelter.recent_good += SHELTER_EVAL_SCALE;
             shelter.reserve_update();
         }
         else if score < 0 {
-            shelter.recent_bad += 1;
+            shelter.recent_bad += SHELTER_EVAL_SCALE;
             shelter.reserve_update();
         }
 
@@ -474,5 +475,6 @@ fn build_shelter_data() -> String {
     json!({
         "shelters": shelters,
         "size": shelters.len(),
+        "eval_scale": SHELTER_EVAL_SCALE,
     }).to_string()
 }
