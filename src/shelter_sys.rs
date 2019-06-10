@@ -236,7 +236,9 @@ pub fn delete_shelter(id: i32, admin_id: String, admin_pwd: String) -> StringRes
 #[get("/admin/user-shelter-list?<admin_id>&<admin_pwd>")]
 pub fn get_user_shelter_list(admin_id: String, admin_pwd: String) -> JsonResult {
     if !check_admin(&admin_id, &admin_pwd) {
-        return Err(BadRequest(Some("Authentication failed!".into())));
+        return Err(BadRequest(Some(json!({
+            "error": "Authentication failed!",
+        }).to_string())));
     }
 
     match db::get_user_shelters() {
