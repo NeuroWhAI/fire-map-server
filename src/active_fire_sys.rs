@@ -28,10 +28,24 @@ struct FireRecord {
 
 
 pub fn init_active_fire_sys(scheduler: &mut TaskSchedulerBuilder) {
-    update_fire_data(get_fire_data()
-        .expect("Fail to get active fire data"));
+    let delay = match get_fire_data() {
+        Ok(data) => {
+            update_fire_data(data);
+            Duration::new(60 * 15, 0)
+        },
+        Err(err) => {
+            warn!("Fail to init active fire cache: {}", err);
 
-    scheduler.add_task(Task::new(active_fire_job, Duration::new(60 * 15, 0)));
+            update_fire_data(json!({
+                "fires": [],
+                "size": 0,
+            }).to_string());
+
+            Duration::new(60 * 1, 0)
+        }
+    };
+
+    scheduler.add_task(Task::new(active_fire_job, delay));
 }
 
 #[get("/active-fire-map")]

@@ -25,10 +25,24 @@ enum FireStatus {
 
 
 pub fn init_fire_sys(scheduler: &mut TaskSchedulerBuilder) {
-    update_fire_event_map(get_fire_event_json()
-        .expect("Fail to get fire events"));
+    let delay = match get_fire_event_json() {
+        Ok(data) => {
+            update_fire_event_map(data);
+            Duration::new(60 * 3, 0)
+        },
+        Err(err) => {
+            warn!("Fail to init fire events: {}", err);
 
-    scheduler.add_task(Task::new(fire_event_job, Duration::new(60 * 3, 0)));
+            update_fire_event_map(json!({
+                "events": [],
+                "size": 0,
+            }).to_string());
+
+            Duration::new(60 * 1, 0)
+        },
+    };
+
+    scheduler.add_task(Task::new(fire_event_job, delay));
 }
 
 #[get("/fire-event-map")]

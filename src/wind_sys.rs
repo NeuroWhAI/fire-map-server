@@ -150,11 +150,22 @@ impl WeightPoint {
 
 
 pub fn init_wind_sys(scheduler: &mut TaskSchedulerBuilder) {
-    let (id, metadata, img) = get_wind_img()
-        .expect("Fail to get wind image");
-    update_wind_map(id, metadata, img);
+    let delay = match get_wind_img() {
+        Ok((id, metadata, img)) => {
+            update_wind_map(id, metadata, img);
+            Duration::new(60 * 5, 0)
+        },
+        Err(err) => {
+            warn!("Fail to init wind: {}", err);
 
-    scheduler.add_task(Task::new(wind_job, Duration::new(60 * 5, 0)));
+            let (id, metadata, img) = make_error_response();
+            update_wind_map(id, metadata, img);
+
+            Duration::new(60 * 1, 0)
+        }
+    };
+
+    scheduler.add_task(Task::new(wind_job, delay));
 }
 
 #[get("/wind-map-metadata")]
@@ -204,25 +215,28 @@ fn update_wind_map(id: u64, metadata: String, wind_img: Vec<u8>) {
     }
 }
 
+fn make_error_response() -> (u64, String, Vec<u8>) {
+    let img_id = CLOCK.elapsed().as_secs();
+
+    let metadata = json!({
+        "error": true,
+        "id": img_id,
+        "width": GRID_WIDTH,
+        "height": GRID_HEIGHT,
+        "resolution": GRID_RESOLUTION,
+        "offset_x": GRID_X_OFFSET,
+        "offset_y": GRID_Y_OFFSET,
+    }).to_string();
+
+    (img_id, metadata, Vec::new())
+}
+
 fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
     get_stations()
         .and_then(|stations| {
             if stations.is_empty() {
                 warn!("No wind stations");
-
-                let img_id = CLOCK.elapsed().as_secs();
-
-                let metadata = json!({
-                    "error": true,
-                    "id": img_id,
-                    "width": GRID_WIDTH,
-                    "height": GRID_HEIGHT,
-                    "resolution": GRID_RESOLUTION,
-                    "offset_x": GRID_X_OFFSET,
-                    "offset_y": GRID_Y_OFFSET,
-                }).to_string();
-
-                return Ok((img_id, metadata, Vec::new()))
+                return Ok(make_error_response());
             }
 
 

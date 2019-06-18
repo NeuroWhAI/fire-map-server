@@ -31,10 +31,25 @@ struct Forecast {
 
 
 pub fn init_fire_forecast_sys(scheduler: &mut TaskSchedulerBuilder) {
-    update_forecast_cache(get_forecast_data(256)
-        .expect("Fail to get fire forecast data"));
+    let delay = match get_forecast_data(16) {
+        Ok(data) => {
+            update_forecast_cache(data);
+            Duration::new(60 * 30, 0)
+        },
+        Err(err) => {
+            warn!("Fail to init fire forecast cache: {}", err);
 
-    scheduler.add_task(Task::new(forecast_job, Duration::new(60 * 30, 0)));
+            update_forecast_cache(json!({
+                "error": true,
+                "fires": [],
+                "size": 0,
+            }).to_string());
+
+            Duration::new(60 * 1, 0)
+        }
+    };
+
+    scheduler.add_task(Task::new(forecast_job, delay));
 }
 
 #[get("/fire-forecast-map")]
@@ -119,6 +134,7 @@ fn get_forecast_data(retry_cnt: usize) -> Result<String, String> {
         .collect::<Vec<_>>();
 
     Ok(json!({
+        "error": false,
         "forecasts": part_forecasts,
         "size": part_forecasts.len(),
     }).to_string())

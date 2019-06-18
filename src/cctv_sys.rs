@@ -81,10 +81,21 @@ impl Clone for CctvData {
 
 
 pub fn init_cctv_sys(scheduler: &mut TaskSchedulerBuilder) {
-    update_cctv_cache(get_cctv_data(false)
-        .expect("Fail to get CCTV data"));
+    let delay = match get_cctv_data(true) {
+        Ok(data) => {
+            update_cctv_cache(data);
+            Duration::new(60 * 3, 0)
+        },
+        Err(err) => {
+            warn!("Fail to init CCTV cache: {}", err);
 
-    scheduler.add_task(Task::new(cctv_job, Duration::new(60 * 3, 0)));
+            update_cctv_cache(Vec::new());
+
+            Duration::new(60 * 1, 0)
+        },
+    };
+
+    scheduler.add_task(Task::new(cctv_job, delay));
 }
 
 #[get("/cctv-map")]
