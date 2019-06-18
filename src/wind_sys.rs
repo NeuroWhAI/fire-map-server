@@ -77,6 +77,7 @@ const GRID_Y_END: f64 = 4734203.787602952;
 const GRID_RESOLUTION: f64 = 1024.0;
 const GRID_HEIGHT: usize = ((GRID_Y_END - GRID_Y_OFFSET) / GRID_RESOLUTION) as usize;
 const GRID_WIDTH: usize = ((GRID_X_END - GRID_X_OFFSET) / GRID_RESOLUTION) as usize;
+const STATION_RANGE: i32 = 32;
 
 
 struct ByteVec(Rc<RefCell<Vec<u8>>>);
@@ -225,6 +226,10 @@ fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
             }
 
 
+            let mut pixels = Vec::with_capacity(GRID_HEIGHT * GRID_WIDTH * 4);
+            pixels.resize(pixels.capacity(), 0);
+
+
             let mut delaunay_x: Delaunay = DelaunayTriangulation::with_walk_locate();
             let mut delaunay_y: Delaunay = DelaunayTriangulation::with_walk_locate();
 
@@ -234,6 +239,7 @@ fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
             let mut max_y = f64::MIN;
             
             for stn in stations {
+                // Calculate range of wind velocity.
                 if stn.wind.x < min_x {
                     min_x = stn.wind.x;
                 }
@@ -247,10 +253,31 @@ fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
                     max_y = stn.wind.y;
                 }
 
+                // Add stations to delaunay.
                 let (x, y) = util::transform_lonlat(stn.longitude, stn.latitude);
                 let (x, y) = ((x - GRID_X_OFFSET) / GRID_RESOLUTION, (y - GRID_Y_OFFSET) / GRID_RESOLUTION);
                 delaunay_x.insert(WeightPoint::new(Point2::new(x, y), stn.wind.x));
                 delaunay_y.insert(WeightPoint::new(Point2::new(x, y), stn.wind.y));
+
+                // Show pixels in station range.
+                for py in (y as i32 - STATION_RANGE)..(y as i32 + STATION_RANGE) {
+                    if py < 0 || py as usize >= GRID_HEIGHT {
+                        continue;
+                    }
+
+                    let y_index = (GRID_HEIGHT - 1 - py as usize) * GRID_WIDTH * 4;
+
+                    for px in (x as i32 - STATION_RANGE)..(x as i32 + STATION_RANGE) {
+                        if px < 0 || px as usize >= GRID_WIDTH {
+                            continue;
+                        }
+
+                        let index = y_index + px as usize * 4;
+
+                        // Set alpha.
+                        pixels[index + 3] = 255;
+                    }
+                }
             }
 
             delaunay_x.estimate_gradients(&(|v| v.weight), &(|v, g| v.gradient = g));
@@ -259,9 +286,6 @@ fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
             let x_term = max_x - min_x;
             let y_term = max_y - min_y;
 
-
-            let mut pixels = Vec::with_capacity(GRID_HEIGHT * GRID_WIDTH * 4);
-            pixels.resize(pixels.capacity(), 0);
 
             for y in 0..GRID_HEIGHT {
                 let mut index = (GRID_HEIGHT - 1 - y) * GRID_WIDTH * 4;
@@ -283,7 +307,6 @@ fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
                     // RGBA
                     pixels[index + 0] = 0_f64.max(norm_wind_x.floor().min(255.0)) as u8;
                     pixels[index + 1] = 0_f64.max(norm_wind_y.floor().min(255.0)) as u8;
-                    pixels[index + 3] = 255;
 
                     index += 4;
                 }
