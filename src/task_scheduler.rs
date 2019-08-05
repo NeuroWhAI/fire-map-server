@@ -6,7 +6,7 @@ use std::{
 use threadpool::ThreadPool;
 
 
-pub type FnTask = Fn() -> Duration + Send + 'static;
+pub type FnTask = dyn Fn() -> Duration + Send + 'static;
 
 
 pub struct Task {
