@@ -73,8 +73,8 @@ fn update_fire_data(json: String) {
 }
 
 fn get_fire_data() -> Result<String, String> {
-    let modis = parse_fire_data("https://firms.modaps.eosdis.nasa.gov/active_fire/c6/text/MODIS_C6_Russia_and_Asia_24h.csv");
-    let viirs = parse_fire_data("https://firms.modaps.eosdis.nasa.gov/active_fire/viirs/text/VNP14IMGTDL_NRT_Russia_and_Asia_24h.csv");
+    let modis = parse_fire_data("https://firms.modaps.eosdis.nasa.gov/data/active_fire/c6/csv/MODIS_C6_Russia_and_Asia_24h.csv");
+    let viirs = parse_fire_data("https://firms.modaps.eosdis.nasa.gov/data/active_fire/viirs/csv/VNP14IMGTDL_NRT_Russia_and_Asia_24h.csv");
 
     let records = match (modis, viirs) {
         (Ok(mut m), Ok(mut v)) => {
