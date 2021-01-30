@@ -18,16 +18,11 @@ use rocket::{
     },
 };
 use serde_json::json;
-use cgmath::{Point2, Vector2};
-use spade::delaunay::{DelaunayTriangulation, DelaunayWalkLocate, FloatDelaunayTriangulation};
-use spade::HasPosition;
+use cgmath::{MetricSpace, Point2, Vector2};
 use png::HasParameters;
 
 use crate::util;
 use crate::task_scheduler::{Task, TaskSchedulerBuilder};
-
-
-type Delaunay = FloatDelaunayTriangulation<WeightPoint, DelaunayWalkLocate>;
 
 
 lazy_static! {
@@ -122,30 +117,6 @@ struct StationData {
     latitude: f64,
     longitude: f64,
     wind: Vector2<f64>,
-}
-
-
-struct WeightPoint {
-    location: Point2<f64>,
-    weight: f64,
-    gradient: Point2<f64>,
-}
-
-impl HasPosition for WeightPoint {
-    type Point = Point2<f64>;
-    fn position(&self) -> Point2<f64> {
-        self.location
-    }
-}
-
-impl WeightPoint {
-    fn new(location: Point2<f64>, weight: f64) -> Self {
-        WeightPoint {
-            location,
-            weight,
-            gradient: Point2::new(0.0, 0.0),
-        }
-    }
 }
 
 
@@ -244,13 +215,12 @@ fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
             pixels.resize(pixels.capacity(), 0);
 
 
-            let mut delaunay_x: Delaunay = DelaunayTriangulation::with_walk_locate();
-            let mut delaunay_y: Delaunay = DelaunayTriangulation::with_walk_locate();
-
             let mut min_x = f64::MAX;
             let mut min_y = f64::MAX;
             let mut max_x = f64::MIN;
             let mut max_y = f64::MIN;
+
+            let mut station_data = Vec::new();
             
             for stn in stations {
                 // Calculate range of wind velocity.
@@ -270,8 +240,7 @@ fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
                 // Add stations to delaunay.
                 let (x, y) = util::transform_lonlat(stn.longitude, stn.latitude);
                 let (x, y) = ((x - GRID_X_OFFSET) / GRID_RESOLUTION, (y - GRID_Y_OFFSET) / GRID_RESOLUTION);
-                delaunay_x.insert(WeightPoint::new(Point2::new(x, y), stn.wind.x));
-                delaunay_y.insert(WeightPoint::new(Point2::new(x, y), stn.wind.y));
+                station_data.push((x, y, stn.wind));
 
                 // Show pixels in station range.
                 for py in (y as i32 - STATION_RANGE)..(y as i32 + STATION_RANGE) {
@@ -294,9 +263,6 @@ fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
                 }
             }
 
-            delaunay_x.estimate_gradients(&(|v| v.weight), &(|v, g| v.gradient = g));
-            delaunay_y.estimate_gradients(&(|v| v.weight), &(|v, g| v.gradient = g));
-
             let x_term = max_x - min_x;
             let y_term = max_y - min_y;
 
@@ -307,13 +273,24 @@ fn get_wind_img() -> Result<(u64, String, Vec<u8>), String> {
                 for x in 0..GRID_WIDTH {
                     let point = Point2::new(x as f64, y as f64);
 
-                    let wind_x_opt = delaunay_x.nn_interpolation_c1_sibson(&point, 1.0, |v| v.weight, |_, v| v.gradient);
-                    let wind_y_opt = delaunay_y.nn_interpolation_c1_sibson(&point, 1.0, |v| v.weight, |_, v| v.gradient);
+                    let (total_weight, total_wind_x, total_wind_y) = station_data
+                        .iter()
+                        .map(|(stn_x, stn_y, wind)| {
+                            let distance = point.distance2(Point2::new(*stn_x, *stn_y));
+                            let weight = if distance < 1.0 {
+                                1.0
+                            } else {
+                                1.0 / distance.powf(1.5)
+                            };
+                            (weight, weight * wind)
+                        })
+                        .fold((0.0, 0.0, 0.0), |acc, (weight, wind)| (acc.0 + weight, acc.1 + wind.x, acc.2 + wind.y));
 
-                    let (wind_x, wind_y) = match (wind_x_opt, wind_y_opt) {
-                        (Some(wind_x), Some(wind_y)) => (wind_x, wind_y),
-                        _ => (min_x.max(0.0), min_y.max(0.0)),
-                    };
+                    let wind_x = total_wind_x / total_weight;
+                    let wind_x = min_x.max(max_x.min(wind_x));
+                    
+                    let wind_y = total_wind_y / total_weight;
+                    let wind_y = min_y.max(max_y.min(wind_y));
 
                     let norm_wind_x = 255.0 * (wind_x - min_x) / x_term;
                     let norm_wind_y = 255.0 * (wind_y - min_y) / y_term;
