@@ -12,6 +12,7 @@ pub fn generate_rand_id(length: usize) -> String {
     thread_rng()
         .sample_iter(&distributions::Alphanumeric)
         .take(length)
+        .map(char::from)
         .collect()
 }
 
