@@ -20,6 +20,7 @@ mod fire_sys;
 mod wind_sys;
 mod active_fire_sys;
 mod fire_forecast_sys;
+mod danger_place_sys;
 
 
 use std::{env, env::VarError};
@@ -97,6 +98,7 @@ fn main() {
     wind_sys::init_wind_sys(&mut scheduler);
     active_fire_sys::init_active_fire_sys(&mut scheduler);
     fire_forecast_sys::init_fire_forecast_sys(&mut scheduler);
+    danger_place_sys::init_danger_place_sys(&mut scheduler);
 
     let scheduler = scheduler.build();
 
@@ -154,6 +156,9 @@ fn main() {
     ])
     .mount("/", routes![
         fire_forecast_sys::get_fire_forecast_map,
+    ])
+    .mount("/", routes![
+        danger_place_sys::get_danger_place_map,
     ])
     .launch();
 
