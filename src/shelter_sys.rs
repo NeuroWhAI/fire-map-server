@@ -438,7 +438,7 @@ fn init_db_and_shelters() {
                         cache_map.insert(db_shelter.id, Shelter::new(db_shelter.id,
                             sh_name, sh_latitude, sh_longitude, sh_info));
                     },
-                    Err(err) => panic!(err.to_string()),
+                    Err(err) => panic!("{}", err.to_string()),
                 }
             }
         },
@@ -450,7 +450,7 @@ fn init_db_and_shelters() {
                 cache_map.insert(s.id, Shelter::new(s.id, s.name, s.latitude, s.longitude, s.info));
             }
         },
-        Err(err) => panic!(err.to_string()),
+        Err(err) => panic!("{}", err.to_string()),
     }
 }
 
