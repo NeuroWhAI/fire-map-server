@@ -83,7 +83,7 @@ pub fn init_cctv_sys(scheduler: &mut TaskSchedulerBuilder) {
     let delay = match get_cctv_data(true) {
         Ok(data) => {
             update_cctv_cache(data);
-            Duration::new(60 * 3, 0)
+            Duration::new(60 * 5, 0)
         },
         Err(err) => {
             warn!("Fail to init CCTV cache: {}", err);
@@ -124,7 +124,7 @@ fn cctv_job() -> Duration {
     match get_cctv_data(true) {
         Ok(data) => {
             update_cctv_cache(data);
-            Duration::new(60 * 3, 0)
+            Duration::new(60 * 5, 0)
         },
         Err(err) => {
             warn!("Fail to get CCTV data: {}", err);
@@ -151,7 +151,7 @@ fn update_cctv_cache(cctvs: Vec<CctvData>) {
 }
 
 fn get_cctv_data(allow_error: bool) -> Result<Vec<CctvData>, String> {
-    let args = format!("apiKey={}&getType=xml&cctvType=2&minX=120&maxX=150&minY=30&maxY=40", *API_KEY);
+    let args = format!("apiKey={}&getType=xml&cctvType=1&minX=120&maxX=150&minY=30&maxY=40", *API_KEY);
     let url = format!("https://openapi.its.go.kr:9443/cctvInfo?{}", args);
     let ex_result = reqwest::get(&format!("{}&type=ex", url))
         .and_then(|mut res| res.text());
