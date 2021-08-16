@@ -29,6 +29,7 @@ use std::time::Duration;
 use rocket::response::NamedFile;
 use rocket::fairing::AdHoc;
 use log::LevelFilter;
+use sentry_log::LogFilter;
 
 use crate::logger::Logger;
 use crate::task_scheduler::TaskSchedulerBuilder;
@@ -75,16 +76,24 @@ fn get_static_file(file: PathBuf) -> Option<NamedFile> {
 
 
 fn main() {
-    let log_level = if *DEBUG {
-        LevelFilter::Info
+    let _sentry = if *DEBUG {
+        log::set_logger(&LOGGER)
+            .map(|_| log::set_max_level(LevelFilter::Info))
+            .expect("Fail to set logger");
+        None
     }
     else {
-        LevelFilter::Warn
-    };
+        let logger = sentry_log::SentryLogger::new().filter(|md| match md.level() {
+            log::Level::Error | log::Level::Warn => LogFilter::Event,
+            _ => LogFilter::Ignore,
+        });
 
-    log::set_logger(&LOGGER)
-        .map(|_| log::set_max_level(log_level))
-        .expect("Fail to set logger");
+        log::set_boxed_logger(Box::new(logger)).unwrap();
+        log::set_max_level(LevelFilter::Warn);
+
+        let sentry = sentry::init(env::var("SENTRY_DNS").unwrap());
+        Some(sentry)
+    };
 
 
     let mut scheduler = TaskSchedulerBuilder::new()
